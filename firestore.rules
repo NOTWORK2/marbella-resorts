@@ -1,0 +1,84 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() { return request.auth != null; }
+
+    // بريد الأدمن يُقرأ من settings/main.adminEmail مع رجوع للقيمة الافتراضية.
+    // هذا يمنع مشكلة عدم تطابق البريد بين القواعد و js/firebase-config.js:
+    // عدّل ADMIN_EMAIL في الإعدادات (أو settings/main.adminEmail) وتتبعه القواعد تلقائياً.
+    function adminEmail() {
+      return get(/databases/$(database)/documents/settings/main).data.get('adminEmail', 'admin@marbella-resorts.com');
+    }
+    function isAdmin() { return isSignedIn() && request.auth.token.email == adminEmail(); }
+
+    function isStr(v, maxLen) { return v is string && v.size() <= maxLen; }
+
+    function validBooking(d) {
+      return d is map
+        && d.keys().hasOnly(['id','unitId','unitName','date','stayType','stayLabel','isWeekend','periodLabel','name','phone','notes','price','currency','pledge','status','createdAt'])
+        && d.keys().hasAll(['id','unitId','unitName','date','name','phone','price','currency','createdAt'])
+        && isStr(d.id, 64)
+        && isStr(d.unitId, 64)
+        && isStr(d.unitName, 120)
+        && isStr(d.date, 20)
+        && isStr(d.name, 100)
+        && isStr(d.phone, 30)
+        && d.price is number && d.price >= 0
+        && isStr(d.currency, 10)
+        && isStr(d.createdAt, 40)
+        && (!d.keys().hasAny(['notes']) || isStr(d.notes, 1000))
+        && (!d.keys().hasAny(['stayType']) || isStr(d.stayType, 10))
+        && (!d.keys().hasAny(['stayLabel']) || isStr(d.stayLabel, 40))
+        && (!d.keys().hasAny(['periodLabel']) || isStr(d.periodLabel, 40))
+        && (!d.keys().hasAny(['status']) || isStr(d.status, 20))
+        && (!d.keys().hasAny(['isWeekend']) || d.isWeekend is bool)
+        && (!d.keys().hasAny(['pledge']) || d.pledge is bool);
+    }
+
+    function validReview(d) {
+      return d is map
+        && d.keys().hasOnly(['unitId','name','text','rating','createdAt'])
+        && d.keys().hasAll(['unitId','name','text','rating','createdAt'])
+        && isStr(d.unitId, 64)
+        && isStr(d.name, 100)
+        && isStr(d.text, 1000)
+        && d.rating is number && d.rating % 1 == 0 && d.rating >= 1 && d.rating <= 5
+        && isStr(d.createdAt, 40);
+    }
+
+    match /settings/main {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /units/{id} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /bookings/{id} {
+      allow read: if isAdmin();
+      // الزائر (مجهول الهوية) يرسل طلب حجز فقط إن كان مطابقاً للبنية
+      allow create: if isSignedIn() && validBooking(request.resource.data);
+      allow update, delete: if isAdmin();
+    }
+
+    // إجماليات مؤرشفة (عدد الحجوزات والإيراد التراكمي) — للأدمن فقط
+    match /stats/main {
+      allow read, write: if isAdmin();
+    }
+
+    match /reviews/{id} {
+      allow read: if true;
+      allow create: if isSignedIn() && validReview(request.resource.data);
+      allow update, delete: if isAdmin();
+    }
+
+    match /users/{uid} {
+      allow read, delete: if isSignedIn() && request.auth.uid == uid;
+      allow create, update: if isSignedIn() && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(['lang','theme','favorites','updatedAt','createdAt']);
+    }
+  }
+}

@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>لوحة التحكم | منتجعات ماربيلا</title>
+  <meta name="robots" content="noindex,nofollow" />
+  <meta name="theme-color" content="#0f1a20" />
+  <link rel="icon" type="image/png" href="assets/images/logo.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" />
+  <link rel="stylesheet" href="css/admin.css?v=18" />
+</head>
+<body>
+
+  <!-- شاشة الدخول -->
+  <div id="login-view" class="login-wrap">
+    <div class="login-card">
+      <img src="assets/images/logo.png" alt="شعار ماربيلا" class="login-logo" width="60" height="60" />
+      <h1>لوحة تحكم ماربيلا</h1>
+      <p>أدخل كلمة المرور للمتابعة</p>
+      <div class="login-error" id="login-error" role="alert"></div>
+      <div class="login-info" id="login-info" role="status" aria-live="polite"></div>
+      <form id="login-form">
+        <label for="admin-pass">كلمة المرور</label>
+        <input id="admin-pass" type="password" placeholder="••••••••" autocomplete="current-password" required />
+        <button type="submit" class="a-btn" style="width:100%;justify-content:center;margin-top:.6rem"><i class="fa-solid fa-right-to-bracket" aria-hidden="true"></i> دخول</button>
+      </form>
+      <p class="login-hint">الدخول بكلمة مرور حساب الأدمن في Firebase.</p>
+      <button type="button" class="link-reset" id="reset-pass-link">نسيت كلمة المرور؟ إرسال رابط الاستعادة</button>
+    </div>
+  </div>
+
+  <!-- لوحة التحكم -->
+  <div id="admin-view" class="admin-layout" hidden>
+    <aside class="sidebar">
+      <div class="sidebar-brand">
+        <img src="assets/images/logo.png" alt="" width="38" height="38" />
+        <div><strong>ماربيلا</strong><small>لوحة التحكم</small></div>
+      </div>
+      <nav>
+        <div class="nav-item active" data-tab="dashboard"><i class="fa-solid fa-gauge" aria-hidden="true"></i> لوحة المعلومات</div>
+        <div class="nav-item" data-tab="dates"><i class="fa-solid fa-calendar-days" aria-hidden="true"></i> التواريخ المحجوزة</div>
+        <div class="nav-item" data-tab="units"><i class="fa-solid fa-house" aria-hidden="true"></i> الاستراحات</div>
+        <div class="nav-item" data-tab="bookings"><i class="fa-solid fa-receipt" aria-hidden="true"></i> سجل الحجوزات</div>
+        <div class="nav-item" data-tab="reviews"><i class="fa-solid fa-star" aria-hidden="true"></i> التقييمات</div>
+        <div class="nav-item" data-tab="offers"><i class="fa-solid fa-fire" aria-hidden="true"></i> العروض</div>
+        <div class="nav-item" data-tab="settings"><i class="fa-solid fa-gear" aria-hidden="true"></i> الإعدادات</div>
+      </nav>
+      <div class="sidebar-foot">إصدار 2.0 — Firebase</div>
+    </aside>
+
+    <div class="main-area">
+      <div class="topbar-a">
+        <h2 id="page-title">لوحة المعلومات</h2>
+        <div class="user-chip"><i class="fa-solid fa-user-shield" aria-hidden="true"></i> مدير <button class="btn-logout" id="logout-btn">خروج</button></div>
+      </div>
+
+      <!-- ===== Dashboard ===== -->
+      <section class="section active" id="sec-dashboard">
+        <div class="stat-cards" id="dash-stats"></div>
+        <div class="chart-card">
+          <h3>الحجوزات حسب الاستراحة</h3>
+          <div class="bar-chart" id="dash-chart"></div>
+        </div>
+        <div class="panel">
+          <div class="panel-head"><h3>أحدث الحجوزات</h3></div>
+          <div id="dash-recent"></div>
+        </div>
+      </section>
+
+      <!-- ===== التواريخ المحجوزة ===== -->
+      <section class="section" id="sec-dates">
+        <div class="panel">
+          <div class="panel-head">
+            <h3>إدارة التواريخ المحجوزة</h3>
+            <div class="cal-unit-tabs" id="cal-unit-tabs"></div>
+          </div>
+          <p style="color:var(--a-muted);font-size:.82rem;margin-bottom:.8rem">انقر على أي يوم لتحديده/إلغاء تحديده كمحجوز. التغييرات تنعكس مباشرة على التقويم في الموقع. الرقم البرتقالي على اليوم = عدد طلبات الحجز الواردة له من الموقع (راجعها في «سجل الحجوزات» ثم أكّدها).</p>
+          <div id="admin-calendar"></div>
+          <div style="display:flex;gap:.5rem;margin-top:1rem;align-items:center;flex-wrap:wrap">
+            <button class="a-btn ghost" id="cal-prev"><i class="fa-solid fa-chevron-right" aria-hidden="true"></i> السابق</button>
+            <strong id="cal-month" style="min-width:140px;text-align:center"></strong>
+            <button class="a-btn ghost" id="cal-next">التالي <i class="fa-solid fa-chevron-left" aria-hidden="true"></i></button>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===== الاستراحات ===== -->
+      <section class="section" id="sec-units">
+        <div class="panel">
+          <div class="panel-head"><h3>بيانات الاستراحات</h3></div>
+          <div id="units-editor"></div>
+        </div>
+      </section>
+
+      <!-- ===== سجل الحجوزات ===== -->
+      <section class="section" id="sec-bookings">
+        <div class="panel">
+          <div class="panel-head">
+            <h3>سجل الحجوزات</h3>
+            <div style="display:flex;gap:.6rem;align-items:center;flex-wrap:wrap">
+              <div class="search-box"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i><input id="bk-search" type="search" placeholder="بحث بالاسم/الهاتف..." /></div>
+              <button class="a-btn ghost" id="export-csv"><i class="fa-solid fa-file-csv" aria-hidden="true"></i> تصدير CSV</button>
+            </div>
+          </div>
+          <div id="bookings-table"></div>
+        </div>
+      </section>
+
+      <!-- ===== التقييمات ===== -->
+      <section class="section" id="sec-reviews">
+        <div class="panel">
+          <div class="panel-head">
+            <h3>تقييمات الضيوف</h3>
+            <button class="a-btn ghost" id="reviews-refresh"><i class="fa-solid fa-rotate" aria-hidden="true"></i> تحديث</button>
+          </div>
+          <div id="reviews-table"></div>
+        </div>
+      </section>
+
+      <!-- ===== العروض ===== -->
+      <section class="section" id="sec-offers">
+        <div class="panel" style="max-width:640px">
+          <div class="panel-head"><h3>إدارة العروض الترويجية</h3></div>
+          <p style="color:var(--a-muted);font-size:.82rem;margin-bottom:1.2rem">تحكّم في عرض العرض الترويجي على الصفحة الرئيسية. فعّل أو أوقف العرض، وحدّد نصه وتواريخه.</p>
+          <form id="offer-form">
+            <div class="a-field">
+              <label style="display:flex;align-items:center;gap:.6rem;cursor:pointer">
+                <input type="checkbox" id="o-active" style="width:1.3rem;height:1.3rem;accent-color:var(--a-brass)" />
+                <span>تفعيل العرض (يظهر العداد التنازلي في الصفحة الرئيسية)</span>
+              </label>
+            </div>
+            <div class="a-field"><label>نص العرض (عربي)</label><input id="o-label" type="text" placeholder="مثال: عرض الصيف — خصم خاص على الحجوزات المبكرة" /></div>
+            <div class="a-field"><label>نص العرض (إنجليزي)</label><input id="o-labelen" type="text" placeholder="Summer Offer — Special Discount..." /></div>
+            <div class="a-row">
+              <div class="a-field"><label>تاريخ بدء العرض (اختياري)</label><input id="o-start" type="date" /><small style="color:var(--a-muted);font-size:.72rem">اتركه فارغاً للبدء فوراً</small></div>
+              <div class="a-field"><label>تاريخ انتهاء العرض</label><input id="o-target" type="date" /></div>
+            </div>
+            <div style="display:flex;gap:.6rem;flex-wrap:wrap">
+              <button type="submit" class="a-btn"><i class="fa-solid fa-floppy-disk" aria-hidden="true"></i> حفظ العرض</button>
+              <button type="button" class="a-btn danger" id="o-disable"><i class="fa-solid fa-ban" aria-hidden="true"></i> إيقاف العرض</button>
+            </div>
+          </form>
+        </div>
+      </section>
+
+      <!-- ===== الإعدادات ===== -->
+      <section class="section" id="sec-settings">
+        <div class="panel" style="max-width:640px">
+          <div class="panel-head"><h3>الإعدادات العامة</h3></div>
+          <form id="settings-form">
+            <div class="a-row">
+              <div class="a-field"><label>اسم العلامة</label><input id="s-brand" type="text" /></div>
+              <div class="a-field"><label>رقم الواتساب (دولي)</label><input id="s-wa" type="text" /></div>
+            </div>
+            <div class="a-row">
+              <div class="a-field"><label>رقم العرض</label><input id="s-phone" type="text" /></div>
+              <div class="a-field"><label>المنطقة</label><input id="s-area" type="text" /></div>
+            </div>
+            <div class="a-row">
+              <div class="a-field"><label>البريد الإلكتروني</label><input id="s-email" type="email" /></div>
+              <div class="a-field"><label>رقم الحساب البنكي (عربون)</label><input id="s-bank" type="text" /></div>
+            </div>
+            <div class="a-row">
+              <div class="a-field"><label>انستغرام</label><input id="s-ig" type="url" /></div>
+              <div class="a-field"><label>تيك توك</label><input id="s-tk" type="url" /></div>
+            </div>
+
+            <!-- ===== أسعار العربون والتأمين ===== -->
+            <div class="settings-section-title"><i class="fa-solid fa-shield-halved" aria-hidden="true"></i> العربون والتأمين</div>
+            <div class="a-row">
+              <div class="a-field"><label>مبلغ العربون (درهم)</label><input id="s-deposit" type="number" min="0" placeholder="500" /></div>
+
+            </div>
+            <div class="a-field"><label>نص التعهد</label><textarea id="s-pledge" rows="2" placeholder="أتعهد بعدم تغيير لون مياه المسبح أو إفسادها..."></textarea></div>
+
+            <div class="settings-section-title"><i class="fa-solid fa-image" aria-hidden="true"></i> اختيار اللوقو</div>
+            <div class="logo-picker" id="logo-picker" role="radiogroup" aria-label="اختيار اللوقو"></div>
+
+            <div class="a-field"><label>رسالة الترحيب</label><textarea id="s-intro" rows="2"></textarea></div>
+            <button type="submit" class="a-btn"><i class="fa-solid fa-floppy-disk" aria-hidden="true"></i> حفظ الإعدادات</button>
+          </form>
+        </div>
+        <div class="panel" style="max-width:640px;margin-top:1.6rem">
+          <div class="panel-head"><h3>الأمان</h3></div>
+          <form id="pass-form">
+            <div class="a-row">
+              <div class="a-field"><label>كلمة مرور جديدة</label><input id="new-pass" type="password" autocomplete="new-password" /></div>
+              <div class="a-field"><label>تأكيد كلمة المرور</label><input id="new-pass2" type="password" autocomplete="new-password" /></div>
+            </div>
+            <button type="submit" class="a-btn"><i class="fa-solid fa-key" aria-hidden="true"></i> تغيير كلمة المرور</button>
+          </form>
+        </div>
+        <div class="panel" style="max-width:640px;margin-top:1.6rem">
+          <div class="panel-head"><h3>منطقة الخطر</h3></div>
+          <p style="color:var(--a-muted);font-size:.85rem;margin-bottom:.8rem">إعادة تعيين كل البيانات (الحجوزات، التواريخ، الإعدادات) إلى الوضع الافتراضي.</p>
+          <button class="a-btn danger" id="reset-all"><i class="fa-solid fa-trash-can" aria-hidden="true"></i> إعادة تعيين الكل</button>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <!-- Firebase (مُركَّز عبر firebase-loader.js) -->
+  <script src="js/firebase-loader.js?v=27"></script>
+  <script src="js/admin.js?v=30"></script>
+</body>
+</html>
