@@ -120,8 +120,8 @@ bootstrapPage(() => {
               <div class="rf-stars" role="radiogroup" aria-label="${isEn ? "Rating" : "التقييم"}">
                 ${[5,4,3,2,1].map(n => `<input type="radio" name="rev-rating" id="r${n}" value="${n}"><label for="r${n}" aria-label="${n} ${isEn ? "stars" : "نجوم"}"><i class="fa-solid fa-star"></i></label>`).join("")}
               </div>
-              <input id="rev-name" type="text" placeholder="${isEn ? "Your name" : "اسمك"}" autocomplete="name" />
-              <textarea id="rev-text" rows="2" placeholder="${isEn ? "Write your comment..." : "اكتب تعليقك..."}"></textarea>
+              <input id="rev-name" type="text" maxlength="100" placeholder="${isEn ? "Your name" : "اسمك"}" autocomplete="name" />
+              <textarea id="rev-text" rows="2" maxlength="1000" placeholder="${isEn ? "Write your comment..." : "اكتب تعليقك..."}"></textarea>
               <small class="rf-error" id="rf-error" role="alert"></small>
               <button type="submit" class="a-btn"><i class="fa-solid fa-paper-plane" aria-hidden="true"></i> ${isEn ? "Submit" : "إرسال التقييم"}</button>
             </form>

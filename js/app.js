@@ -8,6 +8,7 @@ let calDate = new Date();  // الشهر المعروض في التقويم
 let selectedDate = null;   // التاريخ المختار من المستخدم
 let stayType = "night";     // نوع الحجز: "night" (مع مبيت) أو "day" (نهاري)
 let _bookingId = null;      // معرّف ثابت لمحاولة الحجز الحالية (يمنع تكرار المستند)
+let _savedBookingId = null; // آخر معرّف حُفظ بنجاح
 
 /* ===== أسعار نوع الحجز =====
    كل سعر رقم صريح يُحدّد من لوحة التحكم (لا نسب مئوية).
@@ -47,7 +48,13 @@ function getFilteredUnits(){
   
   // فلترة بالمميزات المختارة
   if(unitFilters.feats.length){
-    list = list.filter(u=>unitFilters.feats.every(f=>(u.features||[]).includes(f)));
+    // نفس لغة الرقائق: في الإنجليزية تُبنى من featuresEn، فكانت المقارنة بالعربية
+    // تُرجع «لا توجد استراحات» لأي ميزة مختارة
+    const isEn = typeof currentLang !== 'undefined' && currentLang === 'en';
+    list = list.filter(u=>{
+      const fs = (isEn ? (u.featuresEn || u.features) : u.features) || [];
+      return unitFilters.feats.every(f=>fs.includes(f));
+    });
   }
   // فرز
   switch(unitFilters.sort){
@@ -64,7 +71,9 @@ function buildFilterChips(){
   if(!wrap) return;
   const isEn = typeof currentLang !== 'undefined' && currentLang === 'en';
   const feats = [...new Set(UNITS.flatMap(u => isEn ? (u.featuresEn || []) : (u.features || [])))];
-  wrap.innerHTML = feats.map(f=>`<button class="fb-chip" data-feat="${esc(f)}" aria-pressed="false">${esc(f)}</button>`).join("");
+  // أبقِ حالة الاختيار بعد إعادة البناء (تحديث البيانات يعيد بناء الرقائق)
+  unitFilters.feats = unitFilters.feats.filter(f => feats.includes(f));
+  wrap.innerHTML = feats.map(f=>`<button class="fb-chip" data-feat="${esc(f)}" aria-pressed="${unitFilters.feats.includes(f)}">${esc(f)}</button>`).join("");
   wrap.querySelectorAll("[data-feat]").forEach(chip=>{
     chip.addEventListener("click",()=>{
       const f = chip.dataset.feat;
@@ -86,6 +95,7 @@ function initSettings(){
   
   // Re-render on language change
   window.addEventListener("languageChanged", () => {
+    unitFilters.feats = [];   // المميزات المختارة بلغة لم تعد معروضة
     renderUnits();
     buildFilterChips();
     renderTestimonials();
@@ -505,8 +515,15 @@ function validateName(){
   setFieldError("guest-name",""); return true;
 }
 
+/* أرقام عربية-هندية (٠-٩) وفارسية (۰-۹) → لاتينية: لوحات المفاتيح العربية تكتبها
+   افتراضياً، فكان رقم صحيح يُرفض بـ«رقم جوال غير صحيح» */
+function normalizeDigits(s){
+  return String(s).replace(/[\u0660-\u0669]/g, d => d.charCodeAt(0) - 0x0660)
+                  .replace(/[\u06F0-\u06F9]/g, d => d.charCodeAt(0) - 0x06F0);
+}
+
 function validatePhone(){
-  const v = document.getElementById("guest-phone").value.trim();
+  const v = normalizeDigits(document.getElementById("guest-phone").value.trim());
   if(!v){ setFieldError("guest-phone","اكتب رقم الجوال"); return false; }
   const digits = v.replace(/[\s\-()]/g,"");
   if(!/^\+?\d{8,15}$/.test(digits)){ setFieldError("guest-phone","رقم جوال غير صحيح"); return false; }
@@ -626,7 +643,7 @@ async function sendToWhatsApp(){
   }
 
   const name = document.getElementById("guest-name").value.trim();
-  const phone = document.getElementById("guest-phone").value.trim();
+  const phone = normalizeDigits(document.getElementById("guest-phone").value.trim());
   const notes = document.getElementById("guest-notes").value.trim();
 
   const btn = document.getElementById("send-whatsapp");
@@ -691,7 +708,7 @@ async function sendToWhatsApp(){
   const url = `https://wa.me/${SETTINGS.whatsapp}?text=${encodeURIComponent(msg)}`;
 
   // تسجيل الحجز في Firestore (يظهر في لوحة التحكم). التواريخ المحجوزة يديرها الأدمن من اللوحة.
-  if(window.MarbellaStore){
+  if(window.MarbellaStore && _savedBookingId !== _bookingId){
     const isoDate = toISO(selectedDate);
     try {
       await window.MarbellaStore.addBooking({
@@ -709,6 +726,9 @@ async function sendToWhatsApp(){
         pledge: true,
         createdAt: new Date().toISOString()
       });
+      // إعادة الإرسال من نفس النافذة (مثلاً لم يُفتح واتساب) لا تعيد الكتابة:
+      // القواعد تمنع الزائر من تعديل حجز موجود فيظهر خطأ حفظ زائف
+      _savedBookingId = _bookingId;
     } catch(e){
       console.warn("addBooking failed", e);
       showToast("تعذّر حفظ الطلب في قاعدة البيانات، لكن سيُرسل عبر واتساب","err");

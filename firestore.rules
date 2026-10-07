@@ -34,7 +34,8 @@ service cloud.firestore {
         && (!d.keys().hasAny(['stayType']) || isStr(d.stayType, 10))
         && (!d.keys().hasAny(['stayLabel']) || isStr(d.stayLabel, 40))
         && (!d.keys().hasAny(['periodLabel']) || isStr(d.periodLabel, 40))
-        && (!d.keys().hasAny(['status']) || isStr(d.status, 20))
+        // الزائر لا يحدد حالة الحجز (كان يستطيع إنشاء حجز «مؤكد» دون تأكيد الأدمن)
+        && !d.keys().hasAny(['status'])
         && (!d.keys().hasAny(['isWeekend']) || d.isWeekend is bool)
         && (!d.keys().hasAny(['pledge']) || d.pledge is bool);
     }
