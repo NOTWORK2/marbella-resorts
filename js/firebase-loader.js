@@ -3,7 +3,7 @@
    Admin keeps blocking Firebase loading because admin.js needs auth/db immediately. */
 (function () {
   var FB_VERSION = "10.9.0";
-  var V = "?v=29";
+  var V = "?v=30";
   var cdn = "https://www.gstatic.com/firebasejs/" + FB_VERSION + "/firebase-";
   var isAdmin = /(^|\/)admin\.html(?:$|[?#])/.test(location.pathname);
 

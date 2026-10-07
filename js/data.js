@@ -144,7 +144,7 @@ const FAQ = [
    === طبقة التخزين: Firebase (Firestore + Auth) ===
    كل البيانات (الإعدادات، الاستراحات، الحجوزات، التقييمات،
    والتفضيلات: الثيم/اللغة/المفضّلة) تُخزَّن في Firebase.
-   لا يُستخدم localStorage / sessionStorage نهائياً.
+   لا يُستخدم sessionStorage؛ localStorage فقط لنسخة الثيم (marbella-theme) ضد الوميض.
    ============================================================ */
 
 const DEFAULT_SETTINGS = Object.assign({}, SETTINGS);
@@ -228,6 +228,7 @@ function bookingWeekend(b){
 
 if(!window.MarbellaStore){
   const _prefs = { lang:null, theme:null, favorites:[] };
+  const THEME_CACHE_KEY = "marbella-theme";
   let _unitsSubscribed = false;
 
   // تفعيل الاشتراك اللحظي على الاستراحات فور توفر قاعدة البيانات
@@ -280,6 +281,11 @@ if(!window.MarbellaStore){
     getLang(){ return _prefs.lang || "ar"; },
     getTheme(){
       if(_prefs.theme) return _prefs.theme;
+      // قبل وصول التفضيلات من Firestore (أو إن تعذّر): آخر اختيار محفوظ محلياً
+      try{
+        const cached = localStorage.getItem(THEME_CACHE_KEY);
+        if(cached === "dark" || cached === "light") return cached;
+      }catch(e){}
       try{ return matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light"; }
       catch(e){ return "light"; }
     },
@@ -306,6 +312,9 @@ if(!window.MarbellaStore){
 
     _applyTheme(){
       const dark = this.getTheme()==="dark";
+      // نسخة محلية من الاختيار الصريح فقط (Firestore يبقى المرجع) — يقرؤها
+      // theme-init.js قبل رسم الصفحة التالية فلا يظهر الوضع الخاطئ لثوانٍ
+      if(_prefs.theme){ try{ localStorage.setItem(THEME_CACHE_KEY, _prefs.theme); }catch(e){} }
       document.documentElement.classList.toggle("theme-dark", dark);
       const t = document.getElementById("theme-toggle");
       if(t){ const i=t.querySelector("i"); if(i) i.className = dark?"fa-solid fa-sun":"fa-solid fa-moon"; }
