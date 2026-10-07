@@ -244,6 +244,10 @@ function initShell(){
   href("float-whatsapp", wa);
   href("hero-wa", wa);
   if($("cta-wa")) href("cta-wa", wa);
+  // أزرار صفحتي الأسئلة وسياسة الإلغاء: كانت تُضبط مرة واحدة بالرقم الافتراضي
+  // ولا تتحدّث برقم واتساب المحفوظ في لوحة التحكم
+  href("faq-wa", wa);
+  href("policy-wa", wa);
   href("link-instagram", SETTINGS.instagram);
   href("footer-instagram", SETTINGS.instagram);
   href("link-tiktok", SETTINGS.tiktok);

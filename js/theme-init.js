@@ -10,4 +10,10 @@
       matchMedia("(prefers-color-scheme: dark)").matches);
     document.documentElement.classList.toggle("theme-dark", !!dark);
   } catch (e) { /* متصفح غير داعم */ }
+  // اتجاه الصفحة حسب آخر لغة (أو ?lang=) قبل الرسم: يمنع رسم الصفحة RTL ثم قفزها إلى LTR
+  try {
+    var lang = new URLSearchParams(location.search).get("lang");
+    if (lang !== "ar" && lang !== "en") lang = localStorage.getItem("marbella-lang");
+    if (lang === "en") { document.documentElement.lang = "en"; document.documentElement.dir = "ltr"; }
+  } catch (e) { /* تخزين محظور */ }
 })();

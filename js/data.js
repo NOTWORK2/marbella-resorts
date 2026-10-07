@@ -144,7 +144,8 @@ const FAQ = [
    === طبقة التخزين: Firebase (Firestore + Auth) ===
    كل البيانات (الإعدادات، الاستراحات، الحجوزات، التقييمات،
    والتفضيلات: الثيم/اللغة/المفضّلة) تُخزَّن في Firebase.
-   لا يُستخدم sessionStorage؛ localStorage فقط لنسخة الثيم (marbella-theme) ضد الوميض.
+   لا يُستخدم sessionStorage؛ localStorage فقط لنسخة الثيم واللغة (marbella-theme/
+   marbella-lang) تُقرأ قبل الرسم ضد الوميض — Firestore يبقى المرجع.
    ============================================================ */
 
 const DEFAULT_SETTINGS = Object.assign({}, SETTINGS);
@@ -229,6 +230,11 @@ function bookingWeekend(b){
 if(!window.MarbellaStore){
   const _prefs = { lang:null, theme:null, favorites:[] };
   const THEME_CACHE_KEY = "marbella-theme";
+  const LANG_CACHE_KEY = "marbella-lang";
+  function _cached(key, allowed){
+    try{ const v = localStorage.getItem(key); return allowed.includes(v) ? v : null; }catch(e){ return null; }
+  }
+  function _cache(key, v){ try{ localStorage.setItem(key, v); }catch(e){} }
   let _unitsSubscribed = false;
 
   // تفعيل الاشتراك اللحظي على الاستراحات فور توفر قاعدة البيانات
@@ -278,21 +284,20 @@ if(!window.MarbellaStore){
     AR_MONTHS, AR_DOW, pad, toISO,
 
     /* ===== التفضيلات (الثيم/اللغة/المفضّلة) — مخزّنة في Firestore تحت users/{uid} ===== */
-    getLang(){ return _prefs.lang || "ar"; },
+    // قبل وصول التفضيلات من Firestore (أو إن تعذّر): آخر لغة محفوظة محلياً
+    getLang(){ return _prefs.lang || _cached(LANG_CACHE_KEY, ["ar","en"]) || "ar"; },
     getTheme(){
       if(_prefs.theme) return _prefs.theme;
       // قبل وصول التفضيلات من Firestore (أو إن تعذّر): آخر اختيار محفوظ محلياً
-      try{
-        const cached = localStorage.getItem(THEME_CACHE_KEY);
-        if(cached === "dark" || cached === "light") return cached;
-      }catch(e){}
+      const cached = _cached(THEME_CACHE_KEY, ["dark","light"]);
+      if(cached) return cached;
       try{ return matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light"; }
       catch(e){ return "light"; }
     },
     getFavorites(){ return _prefs.favorites.slice(); },
     isFavorite(id){ return _prefs.favorites.includes(id); },
 
-    async setLang(lang){ _prefs.lang = lang; await this._savePrefs(); },
+    async setLang(lang){ _prefs.lang = lang; _cache(LANG_CACHE_KEY, lang); await this._savePrefs(); },
     toggleTheme(){
       const dark = this.getTheme() !== "dark";
       _prefs.theme = dark ? "dark" : "light";
@@ -314,7 +319,7 @@ if(!window.MarbellaStore){
       const dark = this.getTheme()==="dark";
       // نسخة محلية من الاختيار الصريح فقط (Firestore يبقى المرجع) — يقرؤها
       // theme-init.js قبل رسم الصفحة التالية فلا يظهر الوضع الخاطئ لثوانٍ
-      if(_prefs.theme){ try{ localStorage.setItem(THEME_CACHE_KEY, _prefs.theme); }catch(e){} }
+      if(_prefs.theme) _cache(THEME_CACHE_KEY, _prefs.theme);
       document.documentElement.classList.toggle("theme-dark", dark);
       const t = document.getElementById("theme-toggle");
       if(t){ const i=t.querySelector("i"); if(i) i.className = dark?"fa-solid fa-sun":"fa-solid fa-moon"; }
@@ -390,6 +395,7 @@ if(!window.MarbellaStore){
         if(d.exists){
           const data = d.data();
           _prefs.lang = data.lang || "ar";
+          _cache(LANG_CACHE_KEY, _prefs.lang);
           _prefs.theme = data.theme || null;
           _prefs.favorites = Array.isArray(data.favorites) ? data.favorites : [];
         } else {

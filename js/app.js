@@ -272,6 +272,7 @@ function renderFavorites(){
       store.toggleFavorite(id);
       updateFavCount();
       renderFavorites();
+      renderUnits();   // مزامنة قلب البطاقة نفسها في الشبكة الرئيسية
     });
   });
   grid.querySelectorAll("[data-book]").forEach(btn=>{
@@ -311,7 +312,9 @@ function initCountdown(){
     }
     let diff = Math.max(0, target - now);
     if(diff <= 0){
-      banner.innerHTML = `<div class="ob-label"><i class="fa-solid fa-fire" aria-hidden="true"></i> ${label} — ${tr("offer-ended")}</div>`;
+      // عرض منتهٍ: أخفِ الشريط (كان يعرض «انتهى العرض» للزوار — العرض الافتراضي
+      // انتهى في 2026-07-15 فكان يظهر لكل زائر قبل وصول الإعدادات)
+      banner.hidden = true;
       if(_offerTimer){ clearInterval(_offerTimer); _offerTimer = null; }
       return;
     }
@@ -425,7 +428,12 @@ function renderCalendar(){
   html += `</div>`;
   wrap.innerHTML = html;
 
-  document.getElementById("cal-prev").addEventListener("click",()=>{
+  // لا رجوع لأشهر ماضية (كل أيامها غير متاحة)
+  const prevBtn = document.getElementById("cal-prev");
+  if(y < today.getFullYear() || (y === today.getFullYear() && m <= today.getMonth())){
+    prevBtn.disabled = true;
+  }
+  prevBtn.addEventListener("click",()=>{
     calDate = new Date(y,m-1,1); renderCalendar();
   });
   document.getElementById("cal-next").addEventListener("click",()=>{
@@ -678,7 +686,7 @@ async function sendToWhatsApp(){
   msg += `📱 الموبايل: ${phone}\n`;
   if(notes) msg += `📝 ملاحظات: ${notes}\n`;
   msg += `\n✅ تعهدت بدفع عربون ${deposit} درهم، وألا أُغيّر لون مياه المسبح.\n`;
-  msg += `رجو تأكيد الحجز، شكراً لكم.`;
+  msg += `أرجو تأكيد الحجز، شكراً لكم.`;
 
   const url = `https://wa.me/${SETTINGS.whatsapp}?text=${encodeURIComponent(msg)}`;
 

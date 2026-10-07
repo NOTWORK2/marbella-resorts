@@ -149,7 +149,8 @@
 
 /* الأسعار مخفية إلى أن تصل الأسعار الفعلية من Firestore — تمنع ظهور الأسعار
    الافتراضية للحظة إن اختفت الشاشة بالمهلة قبل وصول البيانات */
-.data-pending .unit-prices,.data-pending .bc-prices,.data-pending .sim-price,.data-pending #modal-sub{visibility:hidden}
+.data-pending .unit-prices,.data-pending .bc-prices,.data-pending .sim-price,.data-pending #modal-sub,
+.data-pending #offer-banner,.data-pending #testimonials-grid{visibility:hidden}
 
 @media(prefers-reduced-motion:reduce){
   #app-loader .al-star,#app-loader .al-shoot,#app-loader .al-logo,#app-loader .al-title,#app-loader .al-text{animation-duration:6s}

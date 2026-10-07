@@ -1,6 +1,6 @@
 # Marbella Resorts — Online Booking System
 
-A booking system for multiple chalets/resorts, working on mobile and desktop. All data and preferences are stored in **Firebase** (Firestore + Authentication) — the only browser storage used is a local copy of the visitor's theme choice (`localStorage` key `marbella-theme`), read before first paint so the page doesn't flash the wrong theme while Firebase loads. No `sessionStorage` or PWA cache is used.
+A booking system for multiple chalets/resorts, working on mobile and desktop. All data and preferences are stored in **Firebase** (Firestore + Authentication) — the only browser storage used is a local copy of the visitor's theme and language choice (`localStorage` keys `marbella-theme`, `marbella-lang`), read before first paint so the page doesn't flash the wrong theme/language while Firebase loads. No `sessionStorage` or PWA cache is used.
 
 ## Features
 - Image gallery for each resort
