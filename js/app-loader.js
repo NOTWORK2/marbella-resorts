@@ -147,6 +147,10 @@
   50%{opacity:.7}
 }
 
+/* الأسعار مخفية إلى أن تصل الأسعار الفعلية من Firestore — تمنع ظهور الأسعار
+   الافتراضية للحظة إن اختفت الشاشة بالمهلة قبل وصول البيانات */
+.data-pending .unit-prices,.data-pending .bc-prices,.data-pending .sim-price,.data-pending #modal-sub{visibility:hidden}
+
 @media(prefers-reduced-motion:reduce){
   #app-loader .al-star,#app-loader .al-shoot,#app-loader .al-logo,#app-loader .al-title,#app-loader .al-text{animation-duration:6s}
   #app-loader .al-bar::after{animation-duration:3s}
@@ -195,6 +199,10 @@
     document.addEventListener("DOMContentLoaded", inject, { once: true });
   }
 
+  var root = document.documentElement;
+  root.classList.add("data-pending");
+  function dataSettled() { root.classList.remove("data-pending"); }
+
   var done = false;
   function finish() {
     if (done) return;
@@ -206,10 +214,13 @@
   }
 
   // البيانات جاهزة من Firebase — أجّل الإخفاء قليلاً حتى تُعاد رسم العناصر (الأسماء/الأسعار)
-  window.addEventListener("firebaseDataReady", function () { setTimeout(finish, 200); });
+  window.addEventListener("firebaseDataReady", function () { dataSettled(); setTimeout(finish, 200); });
   // فشل تحميل Firebase: أخفِ فوراً وأظهر البيانات الافتراضية المرسومة أسفل النافذة
-  window.addEventListener("firebaseLoadFailed", finish);
-  // مهلة احتياطية: لا نعلّق المستخدم طويلاً إن تأخر Firebase أو تعذّر إطلاق أي حدث
-  setTimeout(finish, 4000);
+  window.addEventListener("firebaseLoadFailed", function () { dataSettled(); finish(); });
+  // مهلة قصيرة: المحتوى مرسوم خلف الشاشة، فلا نحجبه طويلاً على الإنترنت البطيء.
+  // الأسعار وحدها تبقى مخفية حتى وصول البيانات الفعلية (أو 10 ثوانٍ كحد أقصى
+  // حتى لا تختفي للأبد إن تعذّر الجلب دون إطلاق أي حدث).
+  setTimeout(finish, 1500);
+  setTimeout(dataSettled, 10000);
   window.addEventListener("pagehide", finish);
 })();
