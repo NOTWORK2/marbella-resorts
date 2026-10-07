@@ -32,6 +32,14 @@ function bookingPrice(b){
   const n = Number(bookingVal(b, "price").replace(/[^\d.-]/g, ""));
   return Number.isFinite(n) ? n : 0;
 }
+/* رقم واتساب دولي من رقم الضيف: النموذج يقبل الصيغة المحلية (05XXXXXXXX) لكن
+   wa.me يحتاج رمز الدولة — كان زر واتساب في سجل الحجوزات يفتح رقماً خاطئاً */
+function waNumber(phone){
+  let d = String(phone||"").replace(/\D/g,"");
+  if(d.startsWith("00")) d = d.slice(2);
+  else if(d.startsWith("0")) d = "971" + d.slice(1);   // رقم إماراتي محلي
+  return d;
+}
 function bookingDateLabel(value){
   if(!value) return "";
   const d = new Date(value);
@@ -107,12 +115,13 @@ async function enterAdmin(){
       bks.sort((a,b)=> String(b.createdAt||"").localeCompare(String(a.createdAt||"")));
       cachedBookings = bks;
       bookingsLoadError = "";
+      // بدون نماذج الإعدادات: وصول حجز جديد كان يمسح ما يكتبه الأدمن ولم يحفظه بعد
       const active = document.querySelector(".section.active");
-      if(active) renderAll();
+      if(active) renderAll({ forms:false });
     }, err => {
       console.warn("bookings snapshot error", err);
       bookingsLoadError = bookingsErrorMessage(err);
-      renderAll();
+      renderAll({ forms:false });
     });
   }
   showAdmin();
@@ -132,11 +141,16 @@ async function purgeOldBookings(){
     return d && d < cutoffISO;
   });
   if(!old.length) return;
+  // الأيام المحجوزة في الاستراحات تُحسب في لوحة المعلومات من u.booked دائماً (لا تُحذف
+  // الأيام الماضية منها) — أرشفتها أيضاً كانت تحسب كل حجز مؤكد مرتين في الإجماليات
+  const bookedKeys = new Set();
+  store.getUnits().forEach(u => (u.booked||[]).forEach(iso => bookedKeys.add(u.id+"|"+iso)));
+  const toArchive = old.filter(b => !bookedKeys.has((b.unitId||"")+"|"+(b.date||"")));
   try{
     // 1) أرشفة الإجماليات أولاً (increment ذرّي — آمن مع تعدد الجلسات)
-    const cnt = old.length;
-    const rev = old.reduce((s,b)=>s+bookingPrice(b), 0);
-    await db.collection("stats").doc("main").set({
+    const cnt = toArchive.length;
+    const rev = toArchive.reduce((s,b)=>s+bookingPrice(b), 0);
+    if(cnt) await db.collection("stats").doc("main").set({
       totalBookings: firebase.firestore.FieldValue.increment(cnt),
       totalRevenue:  firebase.firestore.FieldValue.increment(rev),
       updatedAt: new Date().toISOString()
@@ -152,7 +166,7 @@ async function purgeOldBookings(){
     const removed = new Set(old.map(b=>b.id));
     cachedBookings = cachedBookings.filter(b=>!removed.has(b.id));
     renderAll();
-    toast(`أُرشف ${cnt} حجزاً منتهياً (${rev.toLocaleString("ar")} درهم) ثم حُذف — الإجماليات محفوظة`);
+    toast(`حُذف ${old.length} حجزاً منتهياً — الإجماليات محفوظة`);
   }catch(e){ console.warn("auto purge failed (kept bookings intact)", e); }
 }
 
@@ -187,7 +201,7 @@ async function retryBookings(){
 
 document.getElementById("login-form").addEventListener("submit",async e=>{
   e.preventDefault();
-  const pass=document.getElementById("admin-pass").value.trim();
+  const pass=document.getElementById("admin-pass").value;   // بدون trim: المسافات جزء صالح من كلمة المرور
   const err=document.getElementById("login-error");
   const info=document.getElementById("login-info");
   err.textContent=""; info.textContent="";
@@ -404,7 +418,7 @@ function editUnit(id){
   wrap.innerHTML=`<div style="background:var(--a-surface);border:1px solid var(--a-line);border-radius:14px;padding:1.7rem;width:min(680px,96vw);max-height:92vh;overflow:auto;box-shadow:var(--shadow-hover);position:relative">
     <div style="position:absolute;inset-block-start:0;inset-inline:0;height:2px;background:linear-gradient(90deg,transparent,var(--a-brass),transparent);border-radius:14px 14px 0 0"></div>
     <h3 style="margin-bottom:1.1rem;font-size:1.15rem">تعديل ${esc(u.name)}</h3>
-    <div class="a-field"><label>الاسم</label><input id="e-name" value="${esc(u.name)}"/></div>
+    <div class="a-field"><label>الاسم</label><input id="e-name" maxlength="120" value="${esc(u.name)}"/></div>
     <div class="a-field"><label>الوصف</label><input id="e-tag" value="${esc(u.tagline)}"/></div>
     <div class="a-row">
       <div class="a-field"><label>سعر المبيت — أيام الأسبوع (درهم)</label><input id="e-price" type="number" min="0" value="${u.price}"/></div>
@@ -414,7 +428,7 @@ function editUnit(id){
       <div class="a-field"><label>سعر المبيت — ويكند (جمعة+سبت)</label><input id="e-weekendprice" type="number" min="0" value="${u.weekendPrice||u.price}" placeholder="مثال: 1800"/></div>
       <div class="a-field"><label>سعر النهاري — ويكند (جمعة+سبت)</label><input id="e-weekenddayprice" type="number" min="0" value="${u.weekendDayPrice||u.weekendPrice||u.dayPrice||u.price}" placeholder="مثال: 1000"/></div>
     </div>
-    <div class="a-field"><label>العملة</label><input id="e-curr" value="${esc(u.currency)}"/></div>
+    <div class="a-field"><label>العملة</label><input id="e-curr" maxlength="10" value="${esc(u.currency)}"/></div>
     <div class="a-field"><label>السعة</label><input id="e-cap" value="${esc(u.capacity)}"/></div>
     <div class="a-row">
       <div class="a-field"><label>عدد الغرف</label><input id="e-rooms" type="number" min="0" value="${u.roomsNum||0}"/></div>
@@ -533,15 +547,19 @@ function renderBookings(filter=""){
     if(rb) rb.addEventListener("click",retryBookings);
     return;
   }
-  const bookings=(Array.isArray(cachedBookings) ? cachedBookings : []).slice();
+  const allBookings=(Array.isArray(cachedBookings) ? cachedBookings : []);
+  const bookings=allBookings.slice();
   const f=filter.trim().toLowerCase();
   const list=f?bookings.filter(b=>[bookingVal(b,"name"),bookingVal(b,"phone"),bookingVal(b,"unitName"),bookingVal(b,"date")].join(" ").toLowerCase().includes(f)):bookings;
   const units=store.getUnits();
-  // الحجز "مؤكد" إذا كان يومه محجوزاً فعلياً في بيانات الاستراحة (مصدر الحقيقة للموقع)
-  const isConfirmed=b=>{
-    const u=units.find(x=>x.id===b.unitId)||units.find(x=>x.name===b.unitName);
-    return b.status==="confirmed" || !!(u && (u.booked||[]).includes(b.date));
-  };
+  const unitOf=b=>units.find(x=>x.id===b.unitId)||units.find(x=>x.name===b.unitName);
+  const keyOf=b=>{ const u=unitOf(b); return (u?u.id:b.unitId)+"|"+b.date; };
+  // أيام لها طلب مؤكَّد صراحةً (status) — باقي طلبات نفس اليوم ليست مؤكدة
+  const explicitKeys=new Set(allBookings.filter(b=>b.status==="confirmed").map(keyOf));
+  // "مؤكد": مؤكَّد صراحةً، أو (حجوزات قديمة بلا status) يومه محجوز ولا طلب آخر مؤكَّد له.
+  // كان تأكيد طلب واحد يُظهر كل طلبات نفس اليوم «مؤكدة»
+  const dayBooked=b=>{ const u=unitOf(b); return !!(u && (u.booked||[]).includes(b.date)); };
+  const isConfirmed=b=> b.status==="confirmed" || (dayBooked(b) && !explicitKeys.has(keyOf(b)));
   document.getElementById("bookings-table").innerHTML=list.length?`
     <table class="tbl"><thead><tr><th>الاسم</th><th>الاستراحة</th><th>النوع</th><th>التاريخ</th><th>الجوال</th><th>السعر</th><th>تاريخ الطلب</th><th>الحالة</th><th>إجراءات</th></tr></thead><tbody>
     ${list.map(b=>{
@@ -553,23 +571,29 @@ function renderBookings(filter=""){
         ? ` <span class="tag" style="background:#ede9fe;color:#5b21b6">ويكند</span>`
         : ` <span class="tag" style="background:#f1f5f9;color:#475569">أسبوع</span>`;
       const confirmed = isConfirmed(b);
+      const takenByOther = !confirmed && dayBooked(b);
       const statusBadge = confirmed
         ? `<span class="tag" style="background:#dcfce7;color:#166534">مؤكد</span>`
-        : `<span class="tag new">بانتظار التأكيد</span>`;
+        : takenByOther
+          ? `<span class="tag" style="background:#f1f5f9;color:#475569">اليوم محجوز لغيره</span>`
+          : `<span class="tag new">بانتظار التأكيد</span>`;
       return `<tr>
       <td>${esc(bookingVal(b,"name"))}${b.notes?`<br><small style="color:var(--a-muted)">${esc(b.notes)}</small>`:""}</td>
       <td>${esc(bookingVal(b,"unitName"))}</td><td>${stayBadge}${periodBadge}</td><td>${esc(bookingVal(b,"date"))}</td><td>${esc(bookingVal(b,"phone"))}</td><td>${bookingPrice(b).toLocaleString("ar")} ${esc(bookingVal(b,"currency"))}</td>
       <td>${bookingDateLabel(b.createdAt)}</td>
       <td>${statusBadge}</td>
       <td><div class="row-actions">
-        ${confirmed?"":`<button class="icon-btn ok" data-confirm="${esc(b.id)}" title="تأكيد الحجز (حجز اليوم في الموقع)"><i class="fa-solid fa-check"></i></button>`}
-        <a class="icon-btn" href="https://wa.me/${bookingVal(b,"phone").replace(/\D/g,'')}" target="_blank" rel="noopener" title="واتساب"><i class="fa-brands fa-whatsapp"></i></a>
+        ${(confirmed||takenByOther)?"":`<button class="icon-btn ok" data-confirm="${esc(b.id)}" title="تأكيد الحجز (حجز اليوم في الموقع)"><i class="fa-solid fa-check"></i></button>`}
+        <a class="icon-btn" href="https://wa.me/${waNumber(bookingVal(b,"phone"))}" target="_blank" rel="noopener" title="واتساب"><i class="fa-brands fa-whatsapp"></i></a>
         <button class="icon-btn del" data-del="${esc(b.id)}" title="حذف"><i class="fa-solid fa-trash"></i></button>
       </div></td></tr>`;
     }).join("")}
     </tbody></table>`:`<div class="tbl-empty">لا توجد حجوزات${f?" مطابقة":""}</div>`;
-  document.querySelectorAll("[data-del]").forEach(b=>b.addEventListener("click",async ()=>{
+  // نطاق الجدول فقط: محدد عام كان يربط أزرار حذف صور محرر الاستراحة (data-del أيضاً) بحذف حجز
+  const tbl = document.getElementById("bookings-table");
+  tbl.querySelectorAll("[data-del]").forEach(b=>b.addEventListener("click",async ()=>{
     const id = b.dataset.del;
+    if(!confirm("حذف هذا الحجز نهائياً؟")) return;
     try{
       await store.deleteBooking(id);
       cachedBookings = cachedBookings.filter(x=>x.id!==id);
@@ -577,7 +601,7 @@ function renderBookings(filter=""){
     }catch(e){ toast(saveError(e),true); }
   }));
   // تأكيد الحجز: يضيف اليوم إلى التواريخ المحجوزة في الاستراحة (ينعكس فوراً على الموقع)
-  document.querySelectorAll("[data-confirm]").forEach(btn=>btn.addEventListener("click",async ()=>{
+  tbl.querySelectorAll("[data-confirm]").forEach(btn=>btn.addEventListener("click",async ()=>{
     const id = btn.dataset.confirm;
     const bk = cachedBookings.find(x=>x.id===id);
     if(!bk) return;
@@ -744,7 +768,7 @@ document.getElementById("pass-form").addEventListener("submit",async e=>{
   e.preventDefault();
   const p1=document.getElementById("new-pass").value;
   const p2=document.getElementById("new-pass2").value;
-  if(p1.length<4){toast("كلمة المرور قصيرة جداً",true);return;}
+  if(p1.length<6){toast("كلمة المرور قصيرة جداً (6 أحرف على الأقل)",true);return;}   // حد Firebase الأدنى
   if(p1!==p2){toast("كلمتا المرور غير متطابقتين",true);return;}
   const user = auth.currentUser;
   if(!user){toast("سجّل الدخول أولاً",true);return;}
@@ -755,6 +779,7 @@ document.getElementById("pass-form").addEventListener("submit",async e=>{
   }catch(ex){
     const code = ex && ex.code ? ex.code : "";
     if(code==="auth/requires-recent-login") toast("سجّل الخروج ثم الدخول مجدداً قبل التغيير",true);
+    else if(code==="auth/weak-password") toast("كلمة المرور ضعيفة جداً",true);
     else toast("تعذّر تغيير كلمة المرور",true);
   }
 });
@@ -814,12 +839,12 @@ document.getElementById("reviews-refresh")?.addEventListener("click", async ()=>
 });
 
 /* ===== تشغيل ===== */
-async function renderAll(){
+async function renderAll({ forms = true } = {}){
   renderDashboard();
   renderCalTabs();
   renderAdminCalendar();
   renderUnitsEditor();
   renderBookings();
   renderReviews();
-  renderSettings();
+  if(forms) renderSettings();
 }

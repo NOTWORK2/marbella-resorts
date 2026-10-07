@@ -144,7 +144,8 @@ const FAQ = [
    === طبقة التخزين: Firebase (Firestore + Auth) ===
    كل البيانات (الإعدادات، الاستراحات، الحجوزات، التقييمات،
    والتفضيلات: الثيم/اللغة/المفضّلة) تُخزَّن في Firebase.
-   لا يُستخدم localStorage / sessionStorage نهائياً.
+   لا يُستخدم sessionStorage؛ localStorage فقط لنسخة الثيم واللغة (marbella-theme/
+   marbella-lang) تُقرأ قبل الرسم ضد الوميض — Firestore يبقى المرجع.
    ============================================================ */
 
 const DEFAULT_SETTINGS = Object.assign({}, SETTINGS);
@@ -228,6 +229,12 @@ function bookingWeekend(b){
 
 if(!window.MarbellaStore){
   const _prefs = { lang:null, theme:null, favorites:[] };
+  const THEME_CACHE_KEY = "marbella-theme";
+  const LANG_CACHE_KEY = "marbella-lang";
+  function _cached(key, allowed){
+    try{ const v = localStorage.getItem(key); return allowed.includes(v) ? v : null; }catch(e){ return null; }
+  }
+  function _cache(key, v){ try{ localStorage.setItem(key, v); }catch(e){} }
   let _unitsSubscribed = false;
 
   // تفعيل الاشتراك اللحظي على الاستراحات فور توفر قاعدة البيانات
@@ -277,16 +284,20 @@ if(!window.MarbellaStore){
     AR_MONTHS, AR_DOW, pad, toISO,
 
     /* ===== التفضيلات (الثيم/اللغة/المفضّلة) — مخزّنة في Firestore تحت users/{uid} ===== */
-    getLang(){ return _prefs.lang || "ar"; },
+    // قبل وصول التفضيلات من Firestore (أو إن تعذّر): آخر لغة محفوظة محلياً
+    getLang(){ return _prefs.lang || _cached(LANG_CACHE_KEY, ["ar","en"]) || "ar"; },
     getTheme(){
       if(_prefs.theme) return _prefs.theme;
+      // قبل وصول التفضيلات من Firestore (أو إن تعذّر): آخر اختيار محفوظ محلياً
+      const cached = _cached(THEME_CACHE_KEY, ["dark","light"]);
+      if(cached) return cached;
       try{ return matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light"; }
       catch(e){ return "light"; }
     },
     getFavorites(){ return _prefs.favorites.slice(); },
     isFavorite(id){ return _prefs.favorites.includes(id); },
 
-    async setLang(lang){ _prefs.lang = lang; await this._savePrefs(); },
+    async setLang(lang){ _prefs.lang = lang; _cache(LANG_CACHE_KEY, lang); await this._savePrefs(); },
     toggleTheme(){
       const dark = this.getTheme() !== "dark";
       _prefs.theme = dark ? "dark" : "light";
@@ -306,6 +317,9 @@ if(!window.MarbellaStore){
 
     _applyTheme(){
       const dark = this.getTheme()==="dark";
+      // نسخة محلية من الاختيار الصريح فقط (Firestore يبقى المرجع) — يقرؤها
+      // theme-init.js قبل رسم الصفحة التالية فلا يظهر الوضع الخاطئ لثوانٍ
+      if(_prefs.theme) _cache(THEME_CACHE_KEY, _prefs.theme);
       document.documentElement.classList.toggle("theme-dark", dark);
       const t = document.getElementById("theme-toggle");
       if(t){ const i=t.querySelector("i"); if(i) i.className = dark?"fa-solid fa-sun":"fa-solid fa-moon"; }
@@ -381,6 +395,7 @@ if(!window.MarbellaStore){
         if(d.exists){
           const data = d.data();
           _prefs.lang = data.lang || "ar";
+          _cache(LANG_CACHE_KEY, _prefs.lang);
           _prefs.theme = data.theme || null;
           _prefs.favorites = Array.isArray(data.favorites) ? data.favorites : [];
         } else {
@@ -389,9 +404,21 @@ if(!window.MarbellaStore){
       }catch(e){ console.warn("prefs load failed", e); }
     },
     async initFirebaseData(){
-      // المصادقة أولاً ثم جلب/زرع البيانات
-      await this.initData();
+      // المصادقة المجهولة تبدأ بالتوازي مع جلب البيانات (لا تنتظر انتهاءه)
+      // حتى تكون جاهزة أسرع لحفظ التفضيلات وإرسال الحجوزات/التقييمات.
       this._initAuth().catch(e => console.warn("auth init failed", e));
+      await this.initData();
+    },
+    /* قواعد Firestore تشترط مستخدماً مسجّلاً (ولو مجهولاً) لإنشاء حجز/تقييم.
+       إن ضغط الزائر «إرسال» قبل اكتمال الدخول المجهول، ندخل الآن بدل الرفض. */
+    async _ensureAuth(){
+      if(!window.db && window.firebaseBootReady){ try{ await window.firebaseBootReady; }catch(e){} }
+      if(!window.db) throw new Error("Firebase is not ready");
+      if(window.auth && !window.auth.currentUser){
+        // انتظر حسم حالة الدخول أولاً (قد تكون جلسة سابقة قيد الاستعادة) لتفادي إنشاء مستخدم مجهول ثانٍ
+        await new Promise(r => { const off = window.auth.onAuthStateChanged(() => { off(); r(); }); });
+        if(!window.auth.currentUser) await window.auth.signInAnonymously();
+      }
     },
 
     /* ===== الإعدادات ===== */
@@ -471,8 +498,7 @@ if(!window.MarbellaStore){
       }catch(e){ console.error("getBookings failed", e); throw e; }
     },
     async addBooking(b){
-      if(!window.db && window.firebaseBootReady) await window.firebaseBootReady;
-      if(!window.db) throw new Error("Firebase is not ready");
+      await this._ensureAuth();
       b.createdAt = new Date().toISOString();
       // استخدم معرّف الحجز (BK...) كمعرّف للمستند ليكون الكتابة idempotent:
       // أي إرسال مكرّر بنفس المعرّف يكتب فوق المستند نفسه بدل إنشاء حجز ثانٍ.
@@ -503,7 +529,7 @@ if(!window.MarbellaStore){
       }catch(e){ console.error("getAllReviews failed", e); return []; }
     },
     async addReview(unitId, review){
-      if(!window.db) return;
+      await this._ensureAuth();
       review.unitId = unitId;
       review.createdAt = new Date().toISOString();
       await db.collection("reviews").add(review);

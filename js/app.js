@@ -8,6 +8,7 @@ let calDate = new Date();  // الشهر المعروض في التقويم
 let selectedDate = null;   // التاريخ المختار من المستخدم
 let stayType = "night";     // نوع الحجز: "night" (مع مبيت) أو "day" (نهاري)
 let _bookingId = null;      // معرّف ثابت لمحاولة الحجز الحالية (يمنع تكرار المستند)
+let _savedBookingId = null; // آخر معرّف حُفظ بنجاح
 
 /* ===== أسعار نوع الحجز =====
    كل سعر رقم صريح يُحدّد من لوحة التحكم (لا نسب مئوية).
@@ -47,7 +48,13 @@ function getFilteredUnits(){
   
   // فلترة بالمميزات المختارة
   if(unitFilters.feats.length){
-    list = list.filter(u=>unitFilters.feats.every(f=>(u.features||[]).includes(f)));
+    // نفس لغة الرقائق: في الإنجليزية تُبنى من featuresEn، فكانت المقارنة بالعربية
+    // تُرجع «لا توجد استراحات» لأي ميزة مختارة
+    const isEn = typeof currentLang !== 'undefined' && currentLang === 'en';
+    list = list.filter(u=>{
+      const fs = (isEn ? (u.featuresEn || u.features) : u.features) || [];
+      return unitFilters.feats.every(f=>fs.includes(f));
+    });
   }
   // فرز
   switch(unitFilters.sort){
@@ -64,7 +71,9 @@ function buildFilterChips(){
   if(!wrap) return;
   const isEn = typeof currentLang !== 'undefined' && currentLang === 'en';
   const feats = [...new Set(UNITS.flatMap(u => isEn ? (u.featuresEn || []) : (u.features || [])))];
-  wrap.innerHTML = feats.map(f=>`<button class="fb-chip" data-feat="${esc(f)}" aria-pressed="false">${esc(f)}</button>`).join("");
+  // أبقِ حالة الاختيار بعد إعادة البناء (تحديث البيانات يعيد بناء الرقائق)
+  unitFilters.feats = unitFilters.feats.filter(f => feats.includes(f));
+  wrap.innerHTML = feats.map(f=>`<button class="fb-chip" data-feat="${esc(f)}" aria-pressed="${unitFilters.feats.includes(f)}">${esc(f)}</button>`).join("");
   wrap.querySelectorAll("[data-feat]").forEach(chip=>{
     chip.addEventListener("click",()=>{
       const f = chip.dataset.feat;
@@ -86,6 +95,7 @@ function initSettings(){
   
   // Re-render on language change
   window.addEventListener("languageChanged", () => {
+    unitFilters.feats = [];   // المميزات المختارة بلغة لم تعد معروضة
     renderUnits();
     buildFilterChips();
     renderTestimonials();
@@ -272,6 +282,7 @@ function renderFavorites(){
       store.toggleFavorite(id);
       updateFavCount();
       renderFavorites();
+      renderUnits();   // مزامنة قلب البطاقة نفسها في الشبكة الرئيسية
     });
   });
   grid.querySelectorAll("[data-book]").forEach(btn=>{
@@ -300,7 +311,7 @@ function initCountdown(){
     }
     banner.hidden = false;
     const isEn = currentLang === "en";
-    const label = isEn ? (off.labelEn || off.label) : off.label;
+    const label = esc(isEn ? (off.labelEn || off.label) : off.label);
     const target = new Date(off.target + "T23:59:59");
     const start = off.start ? new Date(off.start + "T00:00:00") : null;
     const now = new Date();
@@ -311,7 +322,9 @@ function initCountdown(){
     }
     let diff = Math.max(0, target - now);
     if(diff <= 0){
-      banner.innerHTML = `<div class="ob-label"><i class="fa-solid fa-fire" aria-hidden="true"></i> ${label} — ${tr("offer-ended")}</div>`;
+      // عرض منتهٍ: أخفِ الشريط (كان يعرض «انتهى العرض» للزوار — العرض الافتراضي
+      // انتهى في 2026-07-15 فكان يظهر لكل زائر قبل وصول الإعدادات)
+      banner.hidden = true;
       if(_offerTimer){ clearInterval(_offerTimer); _offerTimer = null; }
       return;
     }
@@ -333,15 +346,18 @@ function initCountdown(){
 }
 
 /* ===== عرض قصص النجاح ===== */
+let _reviewsPromise = null;
 async function renderTestimonials(){
   const wrap = document.getElementById("testimonials-grid");
   if(!wrap) return;
   const isEn = currentLang === "en";
 
-  // جرّب التقييمات الحقيقية من Firebase أولاً
+  // جرّب التقييمات الحقيقية من Firebase أولاً — تُجلب مرة واحدة فقط للصفحة
+  // (كانت تُعاد قراءة مجموعة التقييمات كاملة مع كل تبديل لغة/تحديث)
   let real = [];
   if(window.db && window.MarbellaStore){
-    try{ real = await window.MarbellaStore.getAllReviews(); }catch(e){ real = []; }
+    if(!_reviewsPromise) _reviewsPromise = window.MarbellaStore.getAllReviews().catch(() => { _reviewsPromise = null; return []; });
+    real = (await _reviewsPromise).slice();
   }
   real.sort((a,b)=> String(b.createdAt||"").localeCompare(String(a.createdAt||"")));
 
@@ -422,7 +438,12 @@ function renderCalendar(){
   html += `</div>`;
   wrap.innerHTML = html;
 
-  document.getElementById("cal-prev").addEventListener("click",()=>{
+  // لا رجوع لأشهر ماضية (كل أيامها غير متاحة)
+  const prevBtn = document.getElementById("cal-prev");
+  if(y < today.getFullYear() || (y === today.getFullYear() && m <= today.getMonth())){
+    prevBtn.disabled = true;
+  }
+  prevBtn.addEventListener("click",()=>{
     calDate = new Date(y,m-1,1); renderCalendar();
   });
   document.getElementById("cal-next").addEventListener("click",()=>{
@@ -494,8 +515,15 @@ function validateName(){
   setFieldError("guest-name",""); return true;
 }
 
+/* أرقام عربية-هندية (٠-٩) وفارسية (۰-۹) → لاتينية: لوحات المفاتيح العربية تكتبها
+   افتراضياً، فكان رقم صحيح يُرفض بـ«رقم جوال غير صحيح» */
+function normalizeDigits(s){
+  return String(s).replace(/[\u0660-\u0669]/g, d => d.charCodeAt(0) - 0x0660)
+                  .replace(/[\u06F0-\u06F9]/g, d => d.charCodeAt(0) - 0x06F0);
+}
+
 function validatePhone(){
-  const v = document.getElementById("guest-phone").value.trim();
+  const v = normalizeDigits(document.getElementById("guest-phone").value.trim());
   if(!v){ setFieldError("guest-phone","اكتب رقم الجوال"); return false; }
   const digits = v.replace(/[\s\-()]/g,"");
   if(!/^\+?\d{8,15}$/.test(digits)){ setFieldError("guest-phone","رقم جوال غير صحيح"); return false; }
@@ -615,7 +643,7 @@ async function sendToWhatsApp(){
   }
 
   const name = document.getElementById("guest-name").value.trim();
-  const phone = document.getElementById("guest-phone").value.trim();
+  const phone = normalizeDigits(document.getElementById("guest-phone").value.trim());
   const notes = document.getElementById("guest-notes").value.trim();
 
   const btn = document.getElementById("send-whatsapp");
@@ -675,12 +703,12 @@ async function sendToWhatsApp(){
   msg += `📱 الموبايل: ${phone}\n`;
   if(notes) msg += `📝 ملاحظات: ${notes}\n`;
   msg += `\n✅ تعهدت بدفع عربون ${deposit} درهم، وألا أُغيّر لون مياه المسبح.\n`;
-  msg += `رجو تأكيد الحجز، شكراً لكم.`;
+  msg += `أرجو تأكيد الحجز، شكراً لكم.`;
 
   const url = `https://wa.me/${SETTINGS.whatsapp}?text=${encodeURIComponent(msg)}`;
 
   // تسجيل الحجز في Firestore (يظهر في لوحة التحكم). التواريخ المحجوزة يديرها الأدمن من اللوحة.
-  if(window.MarbellaStore){
+  if(window.MarbellaStore && _savedBookingId !== _bookingId){
     const isoDate = toISO(selectedDate);
     try {
       await window.MarbellaStore.addBooking({
@@ -698,6 +726,9 @@ async function sendToWhatsApp(){
         pledge: true,
         createdAt: new Date().toISOString()
       });
+      // إعادة الإرسال من نفس النافذة (مثلاً لم يُفتح واتساب) لا تعيد الكتابة:
+      // القواعد تمنع الزائر من تعديل حجز موجود فيظهر خطأ حفظ زائف
+      _savedBookingId = _bookingId;
     } catch(e){
       console.warn("addBooking failed", e);
       showToast("تعذّر حفظ الطلب في قاعدة البيانات، لكن سيُرسل عبر واتساب","err");
@@ -711,7 +742,11 @@ async function sendToWhatsApp(){
     btn.disabled = false;
   },600);
 
-  window.open(url,"_blank");
+  // بعد عمليات async (التحقق من الخادم والحفظ) تفقد المتصفحات — خصوصاً Safari على
+  // iPhone — «تفاعل المستخدم» فتحظر النافذة المنبثقة بصمت ولا يُفتح واتساب.
+  // عند الحظر ننتقل في نفس التبويب كي يصل الطلب دائماً.
+  const waWin = window.open(url,"_blank");
+  if(!waWin){ location.href = url; return false; }
   showToast("جاري فتح واتساب لإرسال طلبك","ok");
   return false;
 }

@@ -8,7 +8,10 @@ service cloud.firestore {
     // هذا يمنع مشكلة عدم تطابق البريد بين القواعد و js/firebase-config.js:
     // عدّل ADMIN_EMAIL في الإعدادات (أو settings/main.adminEmail) وتتبعه القواعد تلقائياً.
     function adminEmail() {
-      return get(/databases/$(database)/documents/settings/main).data.get('adminEmail', 'admin@marbella-resorts.com');
+      // exists() أولاً: get() على مستند غير موجود يُفشل القاعدة كلها، فلا يستطيع الأدمن
+      // إنشاء settings/main أول مرة (قاعدة بيانات جديدة أو بعد حذفه)
+      let path = /databases/$(database)/documents/settings/main;
+      return exists(path) ? get(path).data.get('adminEmail', 'admin@marbella-resorts.com') : 'admin@marbella-resorts.com';
     }
     function isAdmin() { return isSignedIn() && request.auth.token.email == adminEmail(); }
 
@@ -31,7 +34,8 @@ service cloud.firestore {
         && (!d.keys().hasAny(['stayType']) || isStr(d.stayType, 10))
         && (!d.keys().hasAny(['stayLabel']) || isStr(d.stayLabel, 40))
         && (!d.keys().hasAny(['periodLabel']) || isStr(d.periodLabel, 40))
-        && (!d.keys().hasAny(['status']) || isStr(d.status, 20))
+        // الزائر لا يحدد حالة الحجز (كان يستطيع إنشاء حجز «مؤكد» دون تأكيد الأدمن)
+        && !d.keys().hasAny(['status'])
         && (!d.keys().hasAny(['isWeekend']) || d.isWeekend is bool)
         && (!d.keys().hasAny(['pledge']) || d.pledge is bool);
     }

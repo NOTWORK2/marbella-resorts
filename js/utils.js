@@ -8,7 +8,7 @@ function esc(s){
 }
 window.esc = esc;
 
-const IMAGE_PLACEHOLDER = "assets/images/placeholder.jpg";
+const IMAGE_PLACEHOLDER = "assets/images/placeholder.svg";
 
 function getImageSrc(image){
   if(typeof image === "string") return image.trim() || IMAGE_PLACEHOLDER;
