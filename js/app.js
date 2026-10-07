@@ -300,7 +300,7 @@ function initCountdown(){
     }
     banner.hidden = false;
     const isEn = currentLang === "en";
-    const label = isEn ? (off.labelEn || off.label) : off.label;
+    const label = esc(isEn ? (off.labelEn || off.label) : off.label);
     const target = new Date(off.target + "T23:59:59");
     const start = off.start ? new Date(off.start + "T00:00:00") : null;
     const now = new Date();
@@ -333,15 +333,18 @@ function initCountdown(){
 }
 
 /* ===== عرض قصص النجاح ===== */
+let _reviewsPromise = null;
 async function renderTestimonials(){
   const wrap = document.getElementById("testimonials-grid");
   if(!wrap) return;
   const isEn = currentLang === "en";
 
-  // جرّب التقييمات الحقيقية من Firebase أولاً
+  // جرّب التقييمات الحقيقية من Firebase أولاً — تُجلب مرة واحدة فقط للصفحة
+  // (كانت تُعاد قراءة مجموعة التقييمات كاملة مع كل تبديل لغة/تحديث)
   let real = [];
   if(window.db && window.MarbellaStore){
-    try{ real = await window.MarbellaStore.getAllReviews(); }catch(e){ real = []; }
+    if(!_reviewsPromise) _reviewsPromise = window.MarbellaStore.getAllReviews().catch(() => { _reviewsPromise = null; return []; });
+    real = (await _reviewsPromise).slice();
   }
   real.sort((a,b)=> String(b.createdAt||"").localeCompare(String(a.createdAt||"")));
 
@@ -711,7 +714,11 @@ async function sendToWhatsApp(){
     btn.disabled = false;
   },600);
 
-  window.open(url,"_blank");
+  // بعد عمليات async (التحقق من الخادم والحفظ) تفقد المتصفحات — خصوصاً Safari على
+  // iPhone — «تفاعل المستخدم» فتحظر النافذة المنبثقة بصمت ولا يُفتح واتساب.
+  // عند الحظر ننتقل في نفس التبويب كي يصل الطلب دائماً.
+  const waWin = window.open(url,"_blank");
+  if(!waWin){ location.href = url; return false; }
   showToast("جاري فتح واتساب لإرسال طلبك","ok");
   return false;
 }

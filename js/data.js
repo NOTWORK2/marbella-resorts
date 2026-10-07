@@ -389,9 +389,21 @@ if(!window.MarbellaStore){
       }catch(e){ console.warn("prefs load failed", e); }
     },
     async initFirebaseData(){
-      // المصادقة أولاً ثم جلب/زرع البيانات
-      await this.initData();
+      // المصادقة المجهولة تبدأ بالتوازي مع جلب البيانات (لا تنتظر انتهاءه)
+      // حتى تكون جاهزة أسرع لحفظ التفضيلات وإرسال الحجوزات/التقييمات.
       this._initAuth().catch(e => console.warn("auth init failed", e));
+      await this.initData();
+    },
+    /* قواعد Firestore تشترط مستخدماً مسجّلاً (ولو مجهولاً) لإنشاء حجز/تقييم.
+       إن ضغط الزائر «إرسال» قبل اكتمال الدخول المجهول، ندخل الآن بدل الرفض. */
+    async _ensureAuth(){
+      if(!window.db && window.firebaseBootReady){ try{ await window.firebaseBootReady; }catch(e){} }
+      if(!window.db) throw new Error("Firebase is not ready");
+      if(window.auth && !window.auth.currentUser){
+        // انتظر حسم حالة الدخول أولاً (قد تكون جلسة سابقة قيد الاستعادة) لتفادي إنشاء مستخدم مجهول ثانٍ
+        await new Promise(r => { const off = window.auth.onAuthStateChanged(() => { off(); r(); }); });
+        if(!window.auth.currentUser) await window.auth.signInAnonymously();
+      }
     },
 
     /* ===== الإعدادات ===== */
@@ -471,8 +483,7 @@ if(!window.MarbellaStore){
       }catch(e){ console.error("getBookings failed", e); throw e; }
     },
     async addBooking(b){
-      if(!window.db && window.firebaseBootReady) await window.firebaseBootReady;
-      if(!window.db) throw new Error("Firebase is not ready");
+      await this._ensureAuth();
       b.createdAt = new Date().toISOString();
       // استخدم معرّف الحجز (BK...) كمعرّف للمستند ليكون الكتابة idempotent:
       // أي إرسال مكرّر بنفس المعرّف يكتب فوق المستند نفسه بدل إنشاء حجز ثانٍ.
@@ -503,7 +514,7 @@ if(!window.MarbellaStore){
       }catch(e){ console.error("getAllReviews failed", e); return []; }
     },
     async addReview(unitId, review){
-      if(!window.db) return;
+      await this._ensureAuth();
       review.unitId = unitId;
       review.createdAt = new Date().toISOString();
       await db.collection("reviews").add(review);

@@ -157,6 +157,7 @@ function tr(key){
   return DICT[currentLang][key] || key;
 }
 
+let _trAppliedLang = null;
 function updateLanguage(lang) {
   const prevLang = currentLang;
   currentLang = lang;
@@ -166,8 +167,9 @@ function updateLanguage(lang) {
   html.lang = lang;
   html.dir = lang === "ar" ? "rtl" : "ltr";
   
-  // Update static text elements
-  document.querySelectorAll("[data-tr]").forEach(el => {
+  // Update static text elements — فقط عند تغيّر اللغة فعلاً: initShell تستدعي هذه
+  // الدالة مراراً، وإعادة كتابة innerHTML كانت تقطع تأثير الكتابة في عنوان البطل
+  if(_trAppliedLang !== lang) document.querySelectorAll("[data-tr]").forEach(el => {
     const key = el.getAttribute("data-tr");
     if(DICT[lang][key]){
       if (el.tagName === "INPUT" && el.type === "search") {
@@ -177,6 +179,8 @@ function updateLanguage(lang) {
       }
     }
   });
+
+  _trAppliedLang = lang;
 
   // Update dynamic parts like settings
   const $ = id => document.getElementById(id);
@@ -246,7 +250,12 @@ function initShell(){
   href("footer-tiktok", SETTINGS.tiktok);
 
   const mapEl = $("area-map");
-  if(mapEl && UNITS[0]) mapEl.src = `https://www.google.com/maps?q=${UNITS[0].lat},${UNITS[0].lng}&z=14&output=embed`;
+  // لا تُعِد تعيين src إن لم يتغيّر: كل تعيين يعيد تحميل خريطة Google كاملة،
+  // و initShell تُستدعى عدة مرات (عند التحميل، بعد Firebase، مع كل تحديث إعدادات)
+  if(mapEl && UNITS[0]){
+    const mapSrc = `https://www.google.com/maps?q=${UNITS[0].lat},${UNITS[0].lng}&z=14&output=embed`;
+    if(mapEl.getAttribute("src") !== mapSrc) mapEl.src = mapSrc;
+  }
 
   const nav = $("navbar");
   if(nav && !nav.dataset.scrollBound){
