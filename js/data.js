@@ -60,7 +60,8 @@ const UNITS = [
     images: ["assets/images/estrha1/photo_1.jpeg", "assets/images/estrha1/photo_10.jpeg", "assets/images/estrha1/photo_11.jpeg", "assets/images/estrha1/photo_12.jpeg", "assets/images/estrha1/photo_13.jpeg", "assets/images/estrha1/photo_14.jpeg", "assets/images/estrha1/photo_15.jpeg", "assets/images/estrha1/photo_16.jpeg", "assets/images/estrha1/photo_17.jpeg", "assets/images/estrha1/photo_18.jpeg", "assets/images/estrha1/photo_2.jpeg", "assets/images/estrha1/photo_3.jpeg", "assets/images/estrha1/photo_4.jpeg", "assets/images/estrha1/photo_5.jpeg", "assets/images/estrha1/photo_6.jpeg"],
     lat: 23.9785,
     lng: 55.5288,
-    booked: []
+    booked: [],
+    specialPrices: {}
   },
   {
     id: "estrha2",
@@ -86,7 +87,8 @@ const UNITS = [
     images: ["assets/images/estrha2/photo_1.jpeg", "assets/images/estrha2/photo_10.jpeg", "assets/images/estrha2/photo_11.jpeg", "assets/images/estrha2/photo_12.jpeg", "assets/images/estrha2/photo_13.jpeg", "assets/images/estrha2/photo_14.jpeg", "assets/images/estrha2/photo_15.jpeg", "assets/images/estrha2/photo_2.jpeg", "assets/images/estrha2/photo_3.jpeg", "assets/images/estrha2/photo_4.jpeg", "assets/images/estrha2/photo_5.jpeg", "assets/images/estrha2/photo_6.jpeg", "assets/images/estrha2/photo_7.jpeg", "assets/images/estrha2/photo_8.jpeg", "assets/images/estrha2/photo_9.jpeg"],
     lat: 23.9790,
     lng: 55.5295,
-    booked: []
+    booked: [],
+    specialPrices: {}
   },
   {
     id: "estrha3",
@@ -112,7 +114,8 @@ const UNITS = [
     images: ["assets/images/estrha1/photo_1.jpeg", "assets/images/estrha2/photo_2.jpeg"],
     lat: 23.9780,
     lng: 55.5280,
-    booked: []
+    booked: [],
+    specialPrices: {}
   }
 ];
 
@@ -192,10 +195,11 @@ const AR_DOW = ["أحد","إثنين","ثلاثاء","أربعاء","خميس","
 function pad(n){return String(n).padStart(2,"0");}
 function toISO(d){return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;}
 
-/* ===== تسعير الويكند =====
+/* ===== التسعير =====
    أيام الويكند: الجمعة (5) والسبت (6) وفق Date.getDay().
-   4 أسعار لكل استراحة: مبيت/نهاري × أيام الأسبوع/ويكند،
-   مع بدائل منطقية عند عدم تحديد سعر الويكند. */
+   يمكن أيضاً تحديد سعر خاص لتاريخ بعينه داخل unit.specialPrices:
+   { "2026-12-25": { night: 2400, day: 1800, label: "العيد" } }
+   السعر الخاص، إن وُجد لنوع الحجز، يسبق سعر الأسبوع/الويكند. */
 const WEEKEND_DAYS = [5, 6];
 function isWeekendDate(date){
   if(!date) return false;
@@ -203,7 +207,27 @@ function isWeekendDate(date){
   if(isNaN(d.getTime())) return false;
   return WEEKEND_DAYS.indexOf(d.getDay()) >= 0;
 }
-function unitPriceFor(unit, stay, weekend){
+function specialPriceEntryFor(unit, date){
+  if(!unit || !date || !unit.specialPrices || typeof unit.specialPrices !== "object") return null;
+  const iso = date instanceof Date ? toISO(date) : String(date).slice(0, 10);
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(iso)) return null;
+  const entry = unit.specialPrices[iso];
+  if(entry == null) return null;
+  // دعم صيغة رقمية قديمة إن أُدخلت البيانات يدوياً: السعر نفسه للنهاري والمبيت.
+  if(typeof entry === "number") return { night:entry, day:entry, label:"" };
+  return (typeof entry === "object" && !Array.isArray(entry)) ? entry : null;
+}
+function specialPriceFor(unit, date, stay){
+  const entry = specialPriceEntryFor(unit, date);
+  if(!entry) return null;
+  const raw = stay === "day" ? entry.day : entry.night;
+  if(raw === "" || raw === null || raw === undefined) return null;
+  const price = Number(raw);
+  return Number.isFinite(price) && price >= 0 ? price : null;
+}
+function unitPriceFor(unit, stay, weekend, date){
+  const special = specialPriceFor(unit, date, stay);
+  if(special !== null) return special;
   if(stay === "day"){
     return weekend
       ? (unit.weekendDayPrice || unit.weekendPrice || unit.dayPrice || unit.price)

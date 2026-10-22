@@ -341,10 +341,6 @@ html[dir="ltr"] .unit-price{left:auto;right:.7rem;}
 .cal-day.booked{background:#f3e0d8;color:var(--clay);cursor:not-allowed;text-decoration:line-through}
 .cal-day.selected{background:var(--brass);color:var(--night);font-weight:700;box-shadow:0 0 0 3px rgba(194,154,62,.25),0 6px 14px rgba(194,154,62,.4);transform:scale(1.06)}
 .cal-day.empty{cursor:default;background:transparent}
-.cal-day.weekend{background:#fbf1dd;border-color:#e6cf99;color:#7a5a14}
-.cal-day.weekend:hover{border-color:var(--brass);color:var(--night);transform:scale(1.06)}
-.cal-dow-weekend{color:#b8862a;font-weight:700}
-.calendar-legend .dot-weekend{background:#fbf1dd;border:1px solid #e6cf99}
 .calendar-legend{position:relative;display:flex;gap:1rem;flex-wrap:wrap;margin-top:.8rem;font-size:.72rem;color:var(--muted);font-weight:500}
 .calendar-legend span{display:inline-flex;align-items:center;gap:.35rem}
 .dot{display:inline-block;width:10px;height:10px;border-radius:2px}

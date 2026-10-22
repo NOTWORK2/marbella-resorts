@@ -268,7 +268,7 @@ function renderDashboard(){
     (u.booked||[]).forEach(iso=>{
       confirmedKeys.add(u.id+"|"+iso);
       totalBookings++;
-      totalRev += (+unitPriceFor(u, "night", isWeekendDate(iso))||0);
+      totalRev += (+unitPriceFor(u, "night", isWeekendDate(iso), iso)||0);
       perUnit[u.id]++;
     });
   });
@@ -329,7 +329,13 @@ function renderCalTabs(){
   if(!calUnitId) calUnitId=units[0].id;
   document.getElementById("cal-unit-tabs").innerHTML=units.map(u=>`
     <button class="cal-tab ${u.id===calUnitId?'active':''}" data-id="${u.id}">${esc(u.name)}</button>`).join("");
-  document.querySelectorAll(".cal-tab").forEach(b=>b.addEventListener("click",()=>{calUnitId=b.dataset.id;renderCalTabs();renderAdminCalendar();}));
+  document.querySelectorAll(".cal-tab").forEach(b=>b.addEventListener("click",()=>{
+    calUnitId=b.dataset.id;
+    renderCalTabs();
+    renderAdminCalendar();
+    renderSpecialPrices();
+    clearSpecialPriceForm();
+  }));
 }
 function renderAdminCalendar(){
   const units=store.getUnits();
@@ -346,14 +352,14 @@ function renderAdminCalendar(){
     const match=(b.unitId===unit.id)||(b.unitName===unit.name);
     if(match && b.date) reqMap[b.date]=(reqMap[b.date]||0)+1;
   });
-  let html=`<div class="admin-cal">${AR_DOW.map((d,i)=>`<div class="dow${(i===5||i===6)?' dow-weekend':''}">${d}</div>`).join("")}`;
+  let html=`<div class="admin-cal">${AR_DOW.map(d=>`<div class="dow">${d}</div>`).join("")}`;
   for(let i=0;i<first;i++) html+=`<div class="day empty"></div>`;
   for(let d=1;d<=days;d++){
     const date=new Date(y,m,d);const iso=toISO(date);
     const past=date<today;const booked=unit.booked.includes(iso);
-    const weekend=isWeekendDate(date)&&!past&&!booked;
+    const hasSpecial=!!specialPriceEntryFor(unit, iso);
     const reqs=reqMap[iso]||0;
-    html+=`<div class="day ${past?'past':''} ${booked?'booked':''} ${weekend?'weekend':''}" data-iso="${iso}">${d}${reqs?`<span class="req-badge" title="${reqs} طلب حجز">${reqs}</span>`:""}</div>`;
+    html+=`<div class="day ${past?'past':''} ${booked?'booked':''} ${hasSpecial?'special-price':''}" data-iso="${iso}">${d}${hasSpecial?'<span class="price-badge" title="يوجد سعر خاص"><i class="fa-solid fa-tag"></i></span>':""}${reqs?`<span class="req-badge" title="${reqs} طلب حجز">${reqs}</span>`:""}</div>`;
   }
   html+=`</div>`;
   document.getElementById("admin-calendar").innerHTML=html;
@@ -377,6 +383,94 @@ function renderAdminCalendar(){
 }
 document.getElementById("cal-prev").addEventListener("click",()=>{calDate=new Date(calDate.getFullYear(),calDate.getMonth()-1,1);renderAdminCalendar();});
 document.getElementById("cal-next").addEventListener("click",()=>{calDate=new Date(calDate.getFullYear(),calDate.getMonth()+1,1);renderAdminCalendar();});
+
+/* ===== أسعار التواريخ الخاصة ===== */
+function clearSpecialPriceForm(){
+  const form=document.getElementById("special-price-form");
+  if(form) form.reset();
+}
+function renderSpecialPrices(){
+  const wrap=document.getElementById("special-prices-list");
+  if(!wrap) return;
+  const units=store.getUnits();
+  const unit=units.find(u=>u.id===calUnitId)||units[0];
+  if(!unit){ wrap.innerHTML=""; return; }
+  const entries=Object.entries(unit.specialPrices||{})
+    .filter(([,value])=>value!=null)
+    .sort(([a],[b])=>a.localeCompare(b));
+  wrap.innerHTML=entries.length?`
+    <div class="special-prices-head">الأسعار المحفوظة لـ <strong>${esc(unit.name)}</strong></div>
+    <div class="special-prices-grid">
+      ${entries.map(([iso,raw])=>{
+        const entry=typeof raw==="number"?{night:raw,day:raw,label:""}:raw;
+        const night=entry&&entry.night!==""&&entry.night!=null?`${Number(entry.night).toLocaleString("ar")} ${esc(unit.currency)}`:"السعر المعتاد";
+        const day=entry&&entry.day!==""&&entry.day!=null?`${Number(entry.day).toLocaleString("ar")} ${esc(unit.currency)}`:"السعر المعتاد";
+        return `<div class="special-price-row">
+          <div><strong>${esc(iso)}</strong>${entry&&entry.label?`<small>${esc(entry.label)}</small>`:""}</div>
+          <span>مبيت: ${night}</span><span>نهاري: ${day}</span>
+          <div class="row-actions">
+            <button type="button" class="icon-btn" data-sp-edit="${esc(iso)}" title="تعديل"><i class="fa-solid fa-pen"></i></button>
+            <button type="button" class="icon-btn del" data-sp-delete="${esc(iso)}" title="حذف"><i class="fa-solid fa-trash"></i></button>
+          </div>
+        </div>`;
+      }).join("")}
+    </div>`:`<div class="tbl-empty">لا توجد أسعار خاصة لهذه الاستراحة.</div>`;
+
+  wrap.querySelectorAll("[data-sp-edit]").forEach(btn=>btn.addEventListener("click",()=>{
+    const iso=btn.dataset.spEdit;
+    const raw=(unit.specialPrices||{})[iso];
+    const entry=typeof raw==="number"?{night:raw,day:raw,label:""}:(raw||{});
+    document.getElementById("sp-date").value=iso;
+    document.getElementById("sp-label").value=entry.label||"";
+    document.getElementById("sp-night").value=entry.night??"";
+    document.getElementById("sp-day").value=entry.day??"";
+    document.getElementById("sp-date").scrollIntoView({behavior:"smooth",block:"center"});
+  }));
+  wrap.querySelectorAll("[data-sp-delete]").forEach(btn=>btn.addEventListener("click",async()=>{
+    const iso=btn.dataset.spDelete;
+    if(!confirm(`حذف السعر الخاص ليوم ${iso}؟`)) return;
+    const latest=store.getUnits();
+    const target=latest.find(u=>u.id===calUnitId);
+    if(!target) return;
+    target.specialPrices=Object.assign({},target.specialPrices||{});
+    delete target.specialPrices[iso];
+    try{
+      await store.setUnits(latest);
+      clearSpecialPriceForm();renderSpecialPrices();renderAdminCalendar();
+      toast("تم حذف السعر الخاص");
+    }catch(e){ toast(saveError(e),true); }
+  }));
+}
+
+document.getElementById("special-price-form")?.addEventListener("submit",async e=>{
+  e.preventDefault();
+  const iso=document.getElementById("sp-date").value;
+  const label=document.getElementById("sp-label").value.trim();
+  const nightRaw=document.getElementById("sp-night").value.trim();
+  const dayRaw=document.getElementById("sp-day").value.trim();
+  if(!iso){ toast("اختر تاريخ السعر الخاص",true); return; }
+  if(nightRaw===""&&dayRaw===""){ toast("أدخل سعر المبيت أو سعر النهاري على الأقل",true); return; }
+  const night=nightRaw===""?null:Number(nightRaw);
+  const day=dayRaw===""?null:Number(dayRaw);
+  if((night!==null&&(!Number.isFinite(night)||night<0))||(day!==null&&(!Number.isFinite(day)||day<0))){
+    toast("أدخل سعراً صحيحاً لا يقل عن صفر",true);return;
+  }
+  const units=store.getUnits();
+  const unit=units.find(u=>u.id===calUnitId)||units[0];
+  if(!unit) return;
+  unit.specialPrices=Object.assign({},unit.specialPrices||{});
+  const entry={};
+  if(night!==null) entry.night=night;
+  if(day!==null) entry.day=day;
+  if(label) entry.label=label;
+  unit.specialPrices[iso]=entry;
+  try{
+    await store.setUnits(units);
+    clearSpecialPriceForm();renderSpecialPrices();renderAdminCalendar();
+    toast(`تم حفظ السعر الخاص ليوم ${iso}`);
+  }catch(err){ toast(saveError(err),true); }
+});
+document.getElementById("sp-reset")?.addEventListener("click",clearSpecialPriceForm);
 
 /* ===== محرر الاستراحات ===== */
 function renderUnitsEditor(){
@@ -818,6 +912,7 @@ async function renderAll(){
   renderDashboard();
   renderCalTabs();
   renderAdminCalendar();
+  renderSpecialPrices();
   renderUnitsEditor();
   renderBookings();
   renderReviews();

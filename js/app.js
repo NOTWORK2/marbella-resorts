@@ -10,11 +10,11 @@ let stayType = "night";     // نوع الحجز: "night" (مع مبيت) أو "
 let _bookingId = null;      // معرّف ثابت لمحاولة الحجز الحالية (يمنع تكرار المستند)
 
 /* ===== أسعار نوع الحجز =====
-   كل سعر رقم صريح يُحدّد من لوحة التحكم (لا نسب مئوية).
-   4 أسعار لكل استراحة: مبيت/نهاري × أيام الأسبوع/ويكند (الجمعة والسبت).
-   isWeekendDate/unitPriceFor مُعرّفتان في data.js (مصدر مشترك). */
+   4 أسعار أساسية لكل استراحة: مبيت/نهاري × أيام الأسبوع/الويكند.
+   السعر الخاص بتاريخ محدد، إن وُجد، يأخذ الأولوية تلقائياً. */
 function getStayPrice(unit, date){
-  return unitPriceFor(unit, stayType, isWeekendDate(date || selectedDate));
+  const targetDate = date || selectedDate;
+  return unitPriceFor(unit, stayType, isWeekendDate(targetDate), targetDate);
 }
 function getStayLabel(){
   return stayType === "day" ? "نهاري (بدون مبيت)" : "مع مبيت";
@@ -398,7 +398,7 @@ function renderCalendar(){
       <button id="cal-next" aria-label="الشهر التالي"><i class="fa-solid fa-chevron-left"></i></button>
     </div><div class="cal-grid">`;
 
-  AR_DOW.forEach((d,i)=> html += `<div class="cal-dow${(i===5||i===6)?' cal-dow-weekend':''}">${d}</div>`);
+  AR_DOW.forEach(d=> html += `<div class="cal-dow">${d}</div>`);
 
   for(let i=0;i<startDay;i++) html += `<div class="cal-day empty"></div>`;
 
@@ -410,12 +410,10 @@ function renderCalendar(){
     const isPast = date < today;
     const isBooked = booked.includes(iso);
     const isSelected = selectedDate && isSameDay(date,selectedDate);
-    const isWeekend = isWeekendDate(date);
     let cls = "cal-day ";
     if(isPast)        cls += "past";
     else if(isBooked) cls += "booked";
     else              cls += isSelected ? "selected" : "free";
-    if(isWeekend && !isPast && !isBooked && !isSelected) cls += " weekend";
     const dis = (isPast||isBooked) ? 'aria-disabled="true"' : "";
     html += `<div class="${cls}" data-date="${iso}" ${dis}>${d}</div>`;
   }
@@ -562,9 +560,12 @@ function updateBookingSub(){
   if(!sub) return;
   if(selectedDate){
     const weekend = isWeekendDate(selectedDate);
-    const price = unitPriceFor(currentUnit, stayType, weekend);
+    const price = getStayPrice(currentUnit, selectedDate);
+    const special = specialPriceEntryFor(currentUnit, selectedDate);
     const stayLbl = stayType === "day" ? "نهاري" : "مبيت";
-    sub.innerHTML = `<i class="fa-solid fa-tag" aria-hidden="true"></i> ${getPeriodLabel(weekend)} — ${stayLbl}: <strong>${price} ${esc(cur)}</strong>`;
+    const specialLabel = special && special.label ? ` — ${esc(special.label)}` : "";
+    const priceKind = specialPriceFor(currentUnit, selectedDate, stayType) !== null ? "سعر خاص" : getPeriodLabel(weekend);
+    sub.innerHTML = `<i class="fa-solid fa-tag" aria-hidden="true"></i> ${priceKind}${specialLabel} — ${stayLbl}: <strong>${price} ${esc(cur)}</strong>`;
   } else {
     const { night, day, wNight, wDay } = getUnitPrices(currentUnit);
     sub.innerHTML = `<small style="opacity:.85">اختر تاريخاً لعرض السعر المناسب</small><br>

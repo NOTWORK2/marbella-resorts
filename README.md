@@ -5,7 +5,8 @@ A booking system for multiple chalets/resorts, working on mobile and desktop. Al
 ## Features
 - Image gallery for each resort
 - Google Maps location
-- Interactive calendar showing available and booked dates
+- Interactive calendar showing available and booked dates; weekend dates use the same availability appearance as other days
+- Date-specific pricing for holidays and events, managed per resort from the admin dashboard
 - Send booking requests directly via WhatsApp (choose the resort and date)
 - Social media integration (Instagram, TikTok, WhatsApp)
 - Fully responsive Arabic RTL design
@@ -179,7 +180,7 @@ The project uses **ImgBB** to upload resort images instead of Firebase Storage (
 
 ## Admin Dashboard
 Open `admin.html`. Log in with the admin account (Email/Password) in Firebase Authentication.
-- Manage booked dates, edit prices and descriptions, booking history, CSV export, general settings, change password.
+- Manage booked dates, edit regular prices and date-specific prices (holidays/events), descriptions, booking history, CSV export, general settings, and password.
 - **Auto-cleanup with archive:** bookings whose date passed more than 30 days ago are deleted automatically on dashboard login — but their count and revenue are **archived first** into `stats/main`, so the dashboard lifetime totals (إجمالي الحجوزات / الإيرادات) always show the true historical numbers. Export CSV if you need per-booking history beyond 30 days.
 - View and delete guest reviews (the "Reviews" section).
 - Upload/remove resort images via ImgBB from the resort edit dialog (key from Settings).

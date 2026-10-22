@@ -11,7 +11,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" />
-  <link rel="stylesheet" href="css/admin.css?v=18" />
+  <link rel="stylesheet" href="css/admin.css?v=19" />
 </head>
 <body>
 
@@ -71,7 +71,7 @@
         </div>
       </section>
 
-      <!-- ===== التواريخ المحجوزة ===== -->
+      <!-- ===== التواريخ المحجوزة والأسعار الخاصة ===== -->
       <section class="section" id="sec-dates">
         <div class="panel">
           <div class="panel-head">
@@ -85,6 +85,25 @@
             <strong id="cal-month" style="min-width:140px;text-align:center"></strong>
             <button class="a-btn ghost" id="cal-next">التالي <i class="fa-solid fa-chevron-left" aria-hidden="true"></i></button>
           </div>
+        </div>
+        <div class="panel">
+          <div class="panel-head"><h3>أسعار التواريخ الخاصة</h3></div>
+          <p style="color:var(--a-muted);font-size:.82rem;margin-bottom:1rem">حدّد سعراً مختلفاً ليوم معيّن مثل العيد أو مناسبة خاصة. السعر الخاص يسبق سعر أيام الأسبوع والويكند، ويمكنك تحديد سعر المبيت أو النهاري أو كليهما.</p>
+          <form id="special-price-form">
+            <div class="a-row">
+              <div class="a-field"><label for="sp-date">التاريخ</label><input id="sp-date" type="date" required /></div>
+              <div class="a-field"><label for="sp-label">اسم المناسبة (اختياري)</label><input id="sp-label" type="text" maxlength="60" placeholder="مثال: عيد الفطر" /></div>
+            </div>
+            <div class="a-row">
+              <div class="a-field"><label for="sp-night">سعر المبيت (درهم)</label><input id="sp-night" type="number" min="0" step="1" placeholder="اتركه فارغاً للسعر المعتاد" /></div>
+              <div class="a-field"><label for="sp-day">سعر النهاري (درهم)</label><input id="sp-day" type="number" min="0" step="1" placeholder="اتركه فارغاً للسعر المعتاد" /></div>
+            </div>
+            <div style="display:flex;gap:.6rem;flex-wrap:wrap">
+              <button type="submit" class="a-btn"><i class="fa-solid fa-floppy-disk" aria-hidden="true"></i> حفظ السعر الخاص</button>
+              <button type="button" class="a-btn ghost" id="sp-reset"><i class="fa-solid fa-rotate-left" aria-hidden="true"></i> تفريغ الحقول</button>
+            </div>
+          </form>
+          <div id="special-prices-list" class="special-prices-list"></div>
         </div>
       </section>
 
@@ -204,7 +223,7 @@
   </div>
 
   <!-- Firebase (مُركَّز عبر firebase-loader.js) -->
-  <script src="js/firebase-loader.js?v=27"></script>
-  <script src="js/admin.js?v=30"></script>
+  <script src="js/firebase-loader.js?v=28"></script>
+  <script src="js/admin.js?v=31"></script>
 </body>
 </html>
