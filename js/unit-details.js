@@ -120,8 +120,8 @@ bootstrapPage(() => {
               <div class="rf-stars" role="radiogroup" aria-label="${isEn ? "Rating" : "التقييم"}">
                 ${[5,4,3,2,1].map(n => `<input type="radio" name="rev-rating" id="r${n}" value="${n}"><label for="r${n}" aria-label="${n} ${isEn ? "stars" : "نجوم"}"><i class="fa-solid fa-star"></i></label>`).join("")}
               </div>
-              <input id="rev-name" type="text" placeholder="${isEn ? "Your name" : "اسمك"}" autocomplete="name" />
-              <textarea id="rev-text" rows="2" placeholder="${isEn ? "Write your comment..." : "اكتب تعليقك..."}"></textarea>
+              <input id="rev-name" type="text" maxlength="100" placeholder="${isEn ? "Your name" : "اسمك"}" autocomplete="name" />
+              <textarea id="rev-text" rows="2" maxlength="1000" placeholder="${isEn ? "Write your comment..." : "اكتب تعليقك..."}"></textarea>
               <small class="rf-error" id="rf-error" role="alert"></small>
               <button type="submit" class="a-btn"><i class="fa-solid fa-paper-plane" aria-hidden="true"></i> ${isEn ? "Submit" : "إرسال التقييم"}</button>
             </form>
@@ -177,7 +177,20 @@ bootstrapPage(() => {
         if(!rating){ rfErr.textContent = isEn ? "Select a rating from 1 to 5 stars" : "اختر تقييماً من 1 إلى 5 نجوم"; return; }
         if(!rname){ rfErr.textContent = isEn ? "Enter your name" : "اكتب اسمك"; return; }
         if(rtext.length < 5){ rfErr.textContent = isEn ? "Write a comment of at least 5 characters" : "اكتب تعليقاً لا يقل عن 5 أحرف"; return; }
-        if(store) await store.addReview(unit.id, { name:rname, rating, text:rtext });
+        const submitBtn = form.querySelector("button[type=submit]");
+        if(submitBtn.disabled) return;
+        submitBtn.disabled = true;
+        try{
+          if(!store) throw new Error("store not ready");
+          await store.addReview(unit.id, { name:rname, rating, text:rtext });
+        }catch(err){
+          // كانت الأخطاء (عدم اكتمال الدخول/الشبكة) تُبتلع بصمت ويبقى الزائر بلا رد
+          console.warn("addReview failed", err);
+          rfErr.textContent = isEn ? "Could not post your review. Please try again." : "تعذّر نشر تقييمك، حاول مرة أخرى.";
+          submitBtn.disabled = false;
+          return;
+        }
+        submitBtn.disabled = false;
         form.reset();
         await renderReviews(unit, isEn);
         rfErr.style.color = "var(--palm)";
@@ -217,13 +230,14 @@ bootstrapPage(() => {
 
   renderDetails();
   window.addEventListener("firebaseDataReady", renderDetails);
+  // إعادة رسم بدل إعادة تحميل الصفحة كاملة عند تبديل اللغة (كان يعيد تحميل
+  // Firebase والصور والخريطة من جديد)؛ نحدّث ?lang في الرابط دون تنقّل
   window.addEventListener("languageChanged", () => {
     const url = new URL(location.href);
     if(url.searchParams.get("lang") !== currentLang){
       url.searchParams.set("lang", currentLang);
-      location.href = url.toString();
-    } else {
-      renderDetails();
+      history.replaceState(null, "", url.toString());
     }
+    renderDetails();
   });
 });

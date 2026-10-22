@@ -6,28 +6,28 @@
 /* خط 29LT Bukra لعنوان البطل */
 @font-face{
   font-family:'29LT Bukra';
-  src:url("../assets/fonts/29ltbukralight.ttf") format("truetype");
+  src:url("../assets/fonts/29ltbukralight.woff2") format("woff2"), url("../assets/fonts/29ltbukralight.ttf") format("truetype");
   font-weight:300;
   font-style:normal;
   font-display:swap;
 }
 @font-face{
   font-family:'29LT Bukra';
-  src:url("../assets/fonts/29ltbukraregular.ttf") format("truetype");
+  src:url("../assets/fonts/29ltbukraregular.woff2") format("woff2"), url("../assets/fonts/29ltbukraregular.ttf") format("truetype");
   font-weight:400;
   font-style:normal;
   font-display:swap;
 }
 @font-face{
   font-family:'29LT Bukra';
-  src:url("../assets/fonts/29ltbukrabold.ttf") format("truetype");
+  src:url("../assets/fonts/29ltbukrabold.woff2") format("woff2"), url("../assets/fonts/29ltbukrabold.ttf") format("truetype");
   font-weight:700;
   font-style:normal;
   font-display:swap;
 }
 @font-face{
   font-family:'29LT Bukra';
-  src:url("../assets/fonts/29ltbukrabolditalic.ttf") format("truetype");
+  src:url("../assets/fonts/29ltbukrabolditalic.woff2") format("woff2"), url("../assets/fonts/29ltbukrabolditalic.ttf") format("truetype");
   font-weight:700;
   font-style:italic;
   font-display:swap;
@@ -142,9 +142,14 @@ body{
 body::after{
   content:"";position:fixed;inset:0;z-index:1;pointer-events:none;
   background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
-  opacity:.035;mix-blend-mode:multiply;
+  /* بدون mix-blend-mode: الدمج على طبقة fixed بملء الشاشة يُجبر المتصفح على إعادة
+     رسم الصفحة كلها مع كل تمرير (تقطيع ملحوظ على الجوال)، والفرق البصري عند 3.5% معدوم تقريباً */
+  opacity:.035;
 }
 body > *{position:relative;z-index:2}
+/* سمة hidden يجب أن تُخفي دائماً — أي display صريح على الصنف (مثل .fav-badge)
+   كان يتغلّب عليها فيظهر عدّاد المفضّلة «0» رغم إخفائه */
+[hidden]{display:none!important}
 h1,h2,h3,h4{font-family:'Aref Ruqaa',serif;color:var(--ink);line-height:1.3;font-weight:400}
 a{color:inherit;text-decoration:none}
 img{max-width:100%;display:block}
@@ -332,6 +337,7 @@ html[dir="ltr"] .unit-price{left:auto;right:.7rem;}
 .cal-nav{position:relative;display:flex;justify-content:space-between;align-items:center;margin-bottom:.8rem;font-weight:600;color:var(--ink);font-family:'Aref Ruqaa';font-size:1.1rem}
 .cal-nav button{background:var(--sand-2);border:1px solid var(--line);width:34px;height:34px;border-radius:var(--r-sharp);cursor:pointer;color:var(--night);display:grid;place-items:center;transition:.2s var(--ease)}
 .cal-nav button:hover{background:var(--brass);color:var(--night);border-color:var(--brass)}
+.cal-nav button:disabled{opacity:.35;cursor:not-allowed;pointer-events:none}
 .cal-grid{position:relative;display:grid;grid-template-columns:repeat(7,1fr);gap:.3rem;text-align:center}
 .cal-dow{font-size:.68rem;color:var(--muted);font-weight:600;padding:.25rem 0}
 .cal-day{aspect-ratio:1;display:grid;place-items:center;border-radius:var(--r-sharp);cursor:pointer;font-size:.9rem;font-weight:500;border:1px solid transparent;transition:.18s var(--ease)}

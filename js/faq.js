@@ -4,7 +4,6 @@
    ============================================================ */
 bootstrapPage(() => {
   const $ = id=>document.getElementById(id);
-  const fw=$("faq-wa"); if(fw) fw.href = `https://wa.me/${SETTINGS.whatsapp}`;
 
   // أيقونات لكل تصنيف FAQ
   const CAT_ICONS = {
